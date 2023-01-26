@@ -21,6 +21,7 @@ import numpy as np
 import pandas as pd
 from pydicom import dcmread
 from PIL import Image
+import matplotlib.pyplot as plt
 from pydicom.errors import InvalidDicomError
 from tensorflow.keras.layers import CategoryEncoding
 from tensorflow.keras.models import load_model
@@ -281,6 +282,7 @@ def transform_data(datapoint:dict) -> dict:
 
     try:
         img = datapoint['image']
+        img = img[:, ~np.all(img == 0, axis = 0)]
         img_mod = rescale_image(img)
         datapoint['image'] = img_mod
     except (AttributeError, KeyError) as e:

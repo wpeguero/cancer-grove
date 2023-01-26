@@ -19,7 +19,7 @@ import pandas as pd
 tsize = 1_500
 BATCH_SIZE = 4
 validate = False
-version=16
+version=17
 
 def _main():
     inputs, output = tumor_classifier(1147, 957)
