@@ -55,18 +55,7 @@ class_names = {
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    filename = "data/CMMD-set/test.csv"
-    fpredictions = './data/CMMD-set/tests/test_predictions21.csv'
-    if os.path.exists(fpredictions):
-        dfp = pd.read_csv(fpredictions)
-    else:
-        mname = "./models/tclass_VGG14"
-        dft = load_testing_data(filename)
-        dfp = predict(dft, mname)
-        dfp.to_csv(fpredictions, index=False) 
-    ct01, metrics = calculate_confusion_matrix(dfp)
-    print(ct01)
-    print(metrics)
+    pass
 
 
 def _convert_dicom_to_png(filename:str) -> None:
@@ -86,7 +75,7 @@ def _convert_dicom_to_png(filename:str) -> None:
         final_image = Image.fromarray(scaled_image)
         final_image.save(f"data/CMMD-set/classifying_set/raw_png/{row['Subject ID'] + '_' + name + ds.ImageLaterality}.png")
 
-def _extract_key_images(data_dir:str, metadata_filename:str, new_download = False) -> pd.DataFrame:
+def _extract_key_images(data_dir:str, metadata_filename:str, new_download = False):
     """Extract the key images based on the Annotation Boxes file.
     
     ...
@@ -289,7 +278,7 @@ def transform_data(datapoint:dict) -> dict:
         print('WARNING: Indicator "image" does not exist.')
     return datapoint
 
-def balance_data(df:pd.DataFrame, sample_size:int=1000) -> pd.DataFrame:
+def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.DataFrame:
     """Balance data for model training.
     
     Splits the dataset into groups based on the categorical
@@ -303,6 +292,11 @@ def balance_data(df:pd.DataFrame, sample_size:int=1000) -> pd.DataFrame:
         Contains all of the data necessary to load the
         training data set.
     
+    columns : list
+        List of columns which will be used to categorize
+        the data. In the case that the columns list is
+        empty, then the dataset will simply be resampled.
+    
     sample_size : integer
         Describes the sample size of the dataset that
         will be used for either training or testing the
@@ -313,85 +307,26 @@ def balance_data(df:pd.DataFrame, sample_size:int=1000) -> pd.DataFrame:
     df_balanced : Pandas DataFrame
         Balanced data set ready for feature extraction.
     """
-    ccat = df['classification'].unique() # 2 categories
-    scat = df['LeftRight'].unique() # 2 categories
-    acat = df['abnormality'].unique() # 3 categories
-    group_schema = {
-        0: [0,0,0],
-        1: [0,0,1],
-        2: [0,0,2],
-        3: [0,1,0],
-        4: [0,1,1],
-        5: [0,1,2],
-        6: [1,0,0],
-        7: [1,0,1],
-        8: [1,0,2],
-        9: [1,1,0],
-        10: [1,1,1],
-        11: [1,1,2]
-    }
-    igroups = 12
-    sgroup = int(sample_size / igroups)
-    dgroups = list()
-    dsample_size = 0
-    for group in range(igroups):
-        gfil = group_schema[group]
-        df_group = df.loc[(df['classification'] == ccat[gfil[0]]) & (df['LeftRight'] == scat[gfil[1]]) & (df['abnormality'] == acat[gfil[2]])]
-        fgroup = sgroup + dsample_size
-        if len(df_group) >= fgroup:
-            df_group = df_group.sample(n=int(fgroup), random_state=42)
-        elif len(df_group) >= sgroup:
-            df_group = df_group.sample(n=int(sgroup), random_state=42)
-        else:
-            df_group = df_group.sample(n=len(df_group), random_state=42)
-        dgroups.append(df_group)
-        dsample_size += sgroup - len(df_group)
-    df_balanced = pd.concat(dgroups)
+    if columns == []:
+        df_balanced = df.sample(frac=1, random_state=42)
+    else:
+        groups = df.groupby(columns)
+        igroups = len(groups.groups)
+        sgroup = int(sample_size / igroups)
+        dgroups = list()
+        dsample_size = 0
+        for gtype, df_group in groups:
+            fgroup = sgroup + dsample_size
+            if len(df_group) >= fgroup:
+                df__selected_group = df_group.sample(n=int(fgroup), random_state=42)
+            elif len(df_group) >= sgroup:
+                df__selected_group = df_group.sample(n=int(sgroup), random_state=42)
+            else:
+                df__selected_group = df_group.sample(n=int(len(df_group)), random_state=42)
+            dgroups.append(df__selected_group)
+            dsample_size += sgroup - len(df_group)
+        df_balanced = pd.concat(dgroups)
     return df_balanced
-
-def load_data(filename:str, batch_size:int):
-    """Load the data using tensorflow data set library.
-    
-    ...
-
-    Uses the os library and the TensorFlow Data
-    api to load, batch, and process the data for
-    training.
-
-    Parameter
-    ---------
-    filename : str
-        Leads to a file containing the paths to
-        all of the DICOM files as well as metadata.
-    
-    batch_size : int
-        Factor of the length of the data set.
-    
-    Returns
-    -------
-    X : TensorFlow Dataset
-        Zipped dataset containing both image data
-        and categorical data together.
-    
-    y : TensorFlow Dataset
-        Data set containing the classifications of
-        the data.
-    """
-    df = pd.read_csv(filename)
-    df['classification'] = pd.Categorical(df['classification'])
-    df['classification'] = df['classification'].cat.codes
-    y = df['classification']
-    X_cat = df[['Age', 'LeftRight']]
-    X_cat['LeftRight'] = pd.Categorical(X_cat['LeftRight'])
-    X_cat['LeftRight'] = X_cat['LeftRight'].cat.codes
-    data_dir = pathlib.Path('data/CMMD-set/classifying_set/raw_png/')
-    ds_img = keras.utils.image_dataset_from_directory(data_dir, batch_size=None, labels=None)
-    print("This is just the image dataset {}.".format(data.experimental.cardinality(ds_img)))
-    ds_cat = data.Dataset.from_tensor_slices((X_cat))
-    print("This is just the categorical dataset {}.".format(data.experimental.cardinality(ds_cat)))
-    y = data.Dataset.from_tensor_slices(y)
-    X = data.Dataset.zip((ds_img, ds_cat))
-    return X, y
 
 def load_training_data(filename:str, first_training:bool=True, validate:bool=False, ssize:int=1000):
     """Load the DICOM data as a dictionary.
@@ -468,7 +403,6 @@ def load_training_data(filename:str, first_training:bool=True, validate:bool=Fal
             data['image'].append(img_mod)
             data['cat'].append([row['enLeftRight'], row['Age']])
             data['class'].append(simcoder(row['enclassification']))
-
             vdata['image'].append(vimg_mod)
             vdata['cat'].append([vrow['enLeftRight'], vrow['Age']])
             vdata['class'].append(simcoder(vrow['enclassification']))
