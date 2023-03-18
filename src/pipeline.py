@@ -15,7 +15,7 @@ Archive.
 import os
 import pathlib
 from fractions import Fraction
-from itertools import permutations
+import csv
 
 import numpy as np
 import pandas as pd
@@ -55,8 +55,19 @@ class_names = {
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    pass
+    df = pd.read_csv('data/DBCMRI/segmentation_filepath_mapping.csv')
+    df['Full Descriptive Path'] = df['Full Descriptive Path'].apply(lambda x: 'data/DBCMRI/' + x)
 
+
+def _remove_first_row(filepath:str, ):
+    xls = pd.ExcelFile(filepath)
+    df = pd.read_excel(xls, 0)
+    df.to_csv('data/DBCMRI/features.csv', index=False)
+    with open('data/DBCMRI/features.csv', 'r') as file:
+        data = file.read()
+    new_data = data.split('\n', 1)[-1]
+    with open('data/DBCMRI/feature2.csv', 'w') as fp:
+        fp.write(new_data)
 
 def _convert_dicom_to_png(filename:str) -> None:
     """Convert a list of dicom files into their png forms.
@@ -328,7 +339,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
         df_balanced = pd.concat(dgroups)
     return df_balanced
 
-def load_training_data(filename:str, first_training:bool=True, validate:bool=False, ssize:int=1000):
+def load_training_data(filename:str, first_training:bool=True, validate:bool=False, ssize:int=1000): #Rework load training data.
     """Load the DICOM data as a dictionary.
     ...
 
