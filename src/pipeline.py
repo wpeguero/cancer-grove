@@ -15,7 +15,7 @@ Archive.
 import os
 import pathlib
 from fractions import Fraction
-import csv
+import json
 
 import numpy as np
 import pandas as pd
@@ -57,16 +57,26 @@ def _main():
     """Test the new functions."""
     df = pd.read_csv('data/DBCMRI/segmentation_filepath_mapping.csv')
     df['Full Descriptive Path'] = df['Full Descriptive Path'].apply(lambda x: 'data/DBCMRI/' + x)
+    #_remove_first_row('data/DBCMRI/Clinical_and_Other_Features.xlsx', 'data/DBCMRI/feature2.csv')
+    df__features = pd.read_csv('data/DBCMRI/feature2.csv')
+    features = df__features.iloc[:1]
+    features = features.fillna("blank")
+    feats = dict()
+    for cname, cdata in features.iteritems():
+        feats.update({cname:list(cdata.values)})
+    with open('data/DBCMRI/features_explained.json', 'w') as fp:
+        json.dump(feats, fp)
+        fp.close()
 
 
-def _remove_first_row(filepath:str, ):
-    xls = pd.ExcelFile(filepath)
+def _remove_first_row(filepath:str, nfilepath:str):
+    xls = pd.ExcelFile(filepath, engine='xlrd')
     df = pd.read_excel(xls, 0)
-    df.to_csv('data/DBCMRI/features.csv', index=False)
-    with open('data/DBCMRI/features.csv', 'r') as file:
+    df.to_csv(filepath, index=False)
+    with open(filepath, 'r') as file:
         data = file.read()
     new_data = data.split('\n', 1)[-1]
-    with open('data/DBCMRI/feature2.csv', 'w') as fp:
+    with open(nfilepath, 'w') as fp:
         fp.write(new_data)
 
 def _convert_dicom_to_png(filename:str) -> None:
