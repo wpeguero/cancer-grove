@@ -28,6 +28,7 @@ from tensorflow.keras.models import load_model
 from tensorflow.nn import softmax
 from tensorflow import data
 from tensorflow import keras
+import plotly.express as px
 
 #Base data
 modalities = {
@@ -57,17 +58,20 @@ def _main():
     """Test the new functions."""
     df = pd.read_csv('data/DBCMRI/segmentation_filepath_mapping.csv')
     df['Full Descriptive Path'] = df['Full Descriptive Path'].apply(lambda x: 'data/DBCMRI/' + x)
-    #_remove_first_row('data/DBCMRI/Clinical_and_Other_Features.xlsx', 'data/DBCMRI/feature2.csv')
     df__features = pd.read_csv('data/DBCMRI/feature2.csv')
-    features = df__features.iloc[:1]
-    features = features.fillna("blank")
-    feats = dict()
-    for cname, cdata in features.iteritems():
-        feats.update({cname:list(cdata.values)})
-    with open('data/DBCMRI/features_explained.json', 'w') as fp:
+    df__features.drop(index=df__features.index[0], axis=0, inplace=True)
+    fcorr = df__features.corr()
+    fig = px.imshow(fcorr, text_auto=True)
+    fig.show()
+
+
+def _extract_feature_definitions(filepath:str, savepath:str, l:int):
+    df = pd.read_csv(filepath)
+    features = df.iloc[:l]
+    feats = features.fillna("blank")
+    with open(savepath, 'w') as fp:
         json.dump(feats, fp)
         fp.close()
-
 
 def _remove_first_row(filepath:str, nfilepath:str):
     xls = pd.ExcelFile(filepath, engine='xlrd')
