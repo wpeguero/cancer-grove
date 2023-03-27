@@ -20,6 +20,7 @@ import json
 import numpy as np
 import pandas as pd
 from pydicom import dcmread
+import pydicom as pdcm
 from PIL import Image
 import matplotlib.pyplot as plt
 from pydicom.errors import InvalidDicomError
@@ -56,13 +57,8 @@ class_names = {
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    df = pd.read_csv('data/DBCMRI/segmentation_filepath_mapping.csv')
-    df['Full Descriptive Path'] = df['Full Descriptive Path'].apply(lambda x: 'data/DBCMRI/' + x)
-    df__features = pd.read_csv('data/DBCMRI/feature2.csv')
-    df__features.drop(index=df__features.index[0], axis=0, inplace=True)
-    fcorr = df__features.corr()
-    fig = px.imshow(fcorr, text_auto=True)
-    fig.show()
+    dicom__file = "data/DBCMRI/Duke-Breast-Cancer-MRI/Breast_MRI_002/01-01-1990-NA-MRI BREAST BILATERAL W  WO-51972/600.000000-ax 3d dyn-25442/1-125.dcm"
+    dfile = dcmread(dicom__file)
 
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
@@ -132,7 +128,7 @@ def _extract_key_images(data_dir:str, metadata_filename:str, new_download = Fals
         df_img_paths = pd.DataFrame(img_paths_list)
         return df_img_paths
 
-def extract_data(file) -> dict:
+def extract_data(file, target_data:list =[]) -> dict:
     """Extract the data from the .dcm files.
 
     ...
@@ -151,6 +147,12 @@ def extract_data(file) -> dict:
         the data. Otherwise, the algorithm will load
         the .dcm file and extract the necessary data.
     
+    target_data : List
+        This contains all of the tag names that will be
+        used as part of the data extraction. In the case
+        that the list is empty, then only the image will be
+        used.
+
     Returns
     -------
     datapoint : dictionary
@@ -188,31 +190,14 @@ def extract_data(file) -> dict:
         ds = file
     datapoint = dict()
     slices = ds.pixel_array
-    targetData = ['PatientSex', 'PatientAge', 'PatientWeight', 'Modality', 'ImageLaterality', 'PatientID']
-    if targetData[0] in ds:
-        datapoint['sex'] = ds[targetData[0]].value
-    else:
+    if target_data == []:
         pass
-    if targetData[1] in ds:
-        datapoint['age'] = ds[targetData[1]].value
     else:
-        pass
-    if targetData[2] in ds:
-        datapoint['weight'] = ds[targetData[2]].value
-    else:
-        pass
-    if targetData[3] in ds:
-        datapoint['modality'] = ds[targetData[3]].value
-    else:
-        pass
-    if targetData[4] in ds:
-        datapoint['side'] = ds[targetData[4]].value
-    else:
-        pass
-    if targetData[5] in ds:
-        datapoint['Subject ID'] = ds[targetData[5]].value
-    else:
-        pass
+        for target in target_data:
+            if target in ds:
+                datapoint[str(target)] = ds[target].value
+            else:
+                pass
     if slices.ndim <= 2:
         pass
     elif slices.ndim >= 3:
