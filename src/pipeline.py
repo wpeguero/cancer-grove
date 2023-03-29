@@ -31,34 +31,13 @@ from tensorflow import data
 from tensorflow import keras
 import plotly.express as px
 
-#Base data
-modalities = {
-    0: 'MR',
-    1: 'CT',
-    2: 'PT',
-    3: 'MG'
-}
-
-sides = {
-    0: 'L',
-    1: 'R'
-}
-
-sex = {
-    0: 'F',
-    1: 'M'
-}
-
-class_names = {
-    0: 'Benign',
-    1: 'Malignant'
-}
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
     dicom__file = "data/DBCMRI/Duke-Breast-Cancer-MRI/Breast_MRI_002/01-01-1990-NA-MRI BREAST BILATERAL W  WO-51972/600.000000-ax 3d dyn-25442/1-125.dcm"
     dfile = dcmread(dicom__file)
+    print(dfile.PatientID)
 
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
@@ -202,7 +181,9 @@ def extract_data(file, target_data:list =[]) -> dict:
         pass
     elif slices.ndim >= 3:
         slices = slices[0]
+    slices = rescale_image(slices)
     datapoint['image'] = slices
+    datapoint['Patient ID'] = ds.PatientID
     return datapoint
 
 def transform_data(datapoint:dict) -> dict:
@@ -338,7 +319,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
         df_balanced = pd.concat(dgroups)
     return df_balanced
 
-def load_training_data(filename:str, first_training:bool=True, validate:bool=False, ssize:int=1000): #Rework load training data.
+def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int=1000, cat_labels:list=[]):
     """Load the DICOM data as a dictionary.
     ...
 
@@ -350,16 +331,24 @@ def load_training_data(filename:str, first_training:bool=True, validate:bool=Fal
 
     Parameters
     ----------
-    filename : str
+    filename : String
         path to a file which contains the metadata,
         classification, and path to the DICOM file.
         Will also contain some sort of ID to better
         identify the samples.
-
-    batch_size : int
-        Factor of the dataset size. Currently set
-        to one as the standard for testing purposes.
-
+    
+    validate : Boolean
+        Conditional statement that determines whether the
+        data requires a split between training and
+        validation. In the case that this is False, then
+        the data set is not split between training and
+        validation.
+    
+    cat_labels : unknown
+        Contains all of the labels that will be used within
+        the training set. These labels are meant to be the
+        column names of the categorical values that will be
+        used for training the machine learning model.
     Returns
     -------
     data : dictionary
@@ -367,163 +356,49 @@ def load_training_data(filename:str, first_training:bool=True, validate:bool=Fal
         for the metadata and the transformed image
         for input to the model.
     """
-    if (first_training == True and validate == True):
-        df = pd.read_csv(filename)
-        #Balancing the training data set
+    df = pd.read_csv(filename)
+    #data = dict()
+    if (cat_labels == False and validate == True):
         df_balanced = balance_data(df, sample_size=ssize)
         df_test = df.drop(df_balanced.index)
-        df_balanced.to_csv("./data/CMMD-set/train_dataset.csv", index=False)
-        df = df_balanced
-        # Balancing the validation data set
-        vdf_balanced = balance_data(df_test, sample_size=int(0.5 * ssize))
-        df_test = df.drop(vdf_balanced.index)
-        vdf_balanced.to_csv('./data/CMMD-set/validation_dataset.csv', index=False)
-        df_test.to_csv("./data/CMMD-set/test_dataset.csv", index=False)
-        vdf = vdf_balanced
-        data = {
-            'image': list(),
-            'cat': list(),
-            'class': list()
-        }
-        vdata = {
-            'image': list(),
-            'cat': list(),
-            'class': list()
-        }
-        # Encode Training Data
-        df['classification'] = pd.Categorical(df['classification'])
-        df['enclassification'] = df['classification'].cat.codes
-        df['LeftRight'] = pd.Categorical(df['LeftRight'])
-        df['enLeftRight'] = df['LeftRight'].cat.codes
-        # Encode Validation Data
-        vdf['classification'] = pd.Categorical(vdf['classification'])
-        vdf['enclassification'] = vdf['classification'].cat.codes
-        vdf['LeftRight'] = pd.Categorical(vdf['LeftRight'])
-        vdf['enLeftRight'] = vdf['LeftRight'].cat.codes
-        simcoder = CategoryEncoding(num_tokens = 2, output_mode="one_hot")
-        for (i, row), (j, vrow) in zip(df.iterrows(), vdf.iterrows()):
-            # collect images
-            ds = dcmread(row['paths'])
-            vds = dcmread(vrow['paths'])
-            img = ds.pixel_array
-            vimg = vds.pixel_array
-            img_mod = rescale_image(img)
-            vimg_mod = rescale_image(vimg)
-            # Collect the data
-            data['image'].append(img_mod)
-            data['cat'].append([row['enLeftRight'], row['Age']])
-            data['class'].append(simcoder(row['enclassification']))
-            vdata['image'].append(vimg_mod)
-            vdata['cat'].append([vrow['enLeftRight'], vrow['Age']])
-            vdata['class'].append(simcoder(vrow['enclassification']))
-        data['image'] = np.asarray(data['image'])
-        data['cat'] = np.asarray(data['cat'])
-        data['class'] = np.asarray(data['class'])
-        vdata['image'] = np.asarray(vdata['image'])
-        vdata['cat'] = np.asarray(vdata['cat'])
-        vdata['class'] = np.asarray(vdata['class'])
-        return data, vdata
-    elif (first_training == True and validate == False):
-        df = pd.read_csv(filename)
-        #Balancing the data set
+        df_validate = balance_data(df_test, sample_size=int(0.5*ssize))
+        data = list(map(extract_data,df_balanced[pathcol]))
+        data_test = list(map(extract_data, df_test[pathcol]))
+        data_validate = list(map(extract_data, df_validate[pathcol]))
+        df_train = pd.DataFrame(data)
+        df_test = pd.DataFrame(df_test)
+        df_val = pd.DataFrame(data_validate)
+        return df_train, df_test, df_val
+    elif (cat_labels == False and validate == False):
         df_balanced = balance_data(df, sample_size=ssize)
         df_test = df.drop(df_balanced.index)
-        df_balanced.to_csv("./data/CMMD-set/train_dataset.csv")
-        df_test.to_csv("./data/CMMD-set/test_dataset.csv")
-        df = df_balanced
-        data = {
-            'image': list(),
-            'cat': list(),
-            'class': list()
-        }
-        df['classification'] = pd.Categorical(df['classification'])
-        df['enclassification'] = df['classification'].cat.codes
-        df['LeftRight'] = pd.Categorical(df['LeftRight'])
-        df['enLeftRight'] = df['LeftRight'].cat.codes
-        simcoder = CategoryEncoding(num_tokens = 2, output_mode="one_hot")
-        for i, row in df.iterrows():
-            ds = dcmread(row['relpaths'])
-            img = ds.pixel_array
-            img_mod = rescale_image(img)
-            #print(img_mod.shape)
-            data['image'].append(img_mod)
-            data['cat'].append([row['enLeftRight'], row['Age']])
-            data['class'].append(simcoder(row['enclassification']))
-        data['image'] = np.asarray(data['image'])
-        data['cat'] = np.asarray(data['cat'])
-        data['class'] = np.asarray(data['class'])
-        return data, None
-    elif (first_training == False and validate == True):
-        df = pd.read_csv(filename)
-        vdf = df.sample(n=200, random_state=42)
-        data = {
-            'image': list(),
-            'cat': list(),
-            'class': list()
-        }
-        vdata = {
-            'image': list(),
-            'cat': list(),
-            'class': list()
-        }
-        # Encode Training Data
-        df['classification'] = pd.Categorical(df['classification'])
-        df['enclassification'] = df['classification'].cat.codes
-        df['LeftRight'] = pd.Categorical(df['LeftRight'])
-        df['enLeftRight'] = df['LeftRight'].cat.codes
-        # Encode Validation Data
-        vdf['classification'] = pd.Categorical(vdf['classification'])
-        vdf['enclassification'] = vdf['classification'].cat.codes
-        vdf['LeftRight'] = pd.Categorical(vdf['LeftRight'])
-        vdf['enLeftRight'] = vdf['LeftRight'].cat.codes
-        simcoder = CategoryEncoding(num_tokens = 2, output_mode="one_hot")
-        for (i, row), (j, vrow) in zip(df.iterrows(), vdf.iterrows()):
-            # collect images
-            ds = dcmread(row['paths'])
-            vds = dcmread(vrow['paths'])
-            img = ds.pixel_array
-            vimg = vds.pixel_array
-            img_mod = rescale_image(img)
-            vimg_mod = rescale_image(vimg)
-            # Collect the data
-            data['image'].append(img_mod)
-            data['cat'].append([row['enLeftRight'], row['Age']])
-            data['class'].append(simcoder(row['enclassification']))
-
-            vdata['image'].append(vimg_mod)
-            vdata['cat'].append([vrow['enLeftRight'], vrow['Age']])
-            vdata['class'].append(simcoder(vrow['enclassification']))
-        data['image'] = np.asarray(data['image'])
-        data['cat'] = np.asarray(data['cat'])
-        data['class'] = np.asarray(data['class'])
-        vdata['image'] = np.asarray(vdata['image'])
-        vdata['cat'] = np.asarray(vdata['cat'])
-        vdata['class'] = np.asarray(vdata['class'])
-        return data, vdata
+        data = list(map(extract_data, df_balanced[pathcol]))
+        data_test = list(map(extract_data, df_test[pathcol]))
+        df_train = pd.DataFrame(data)
+        df_test = pd.DataFrame(data_test)
+        return df_train, df_test
+    elif (cat_labels == True and validate == True):
+        df_balanced = balance_data(df, sample_size=ssize)
+        df_test = df.drop(df_balanced.index)
+        df_validate = balance_data(df_test, sample_size=int(0.5*ssize))
+        data = list(map(extract_data,df_balanced[pathcol], cat_labels))
+        data_test = list(map(extract_data, df_test[pathcol], cat_labels))
+        data_validate = list(map(extract_data, df_validate[pathcol], cat_labels))
+        df_train = pd.DataFrame(data)
+        df_test = pd.DataFrame(df_test)
+        df_val = pd.DataFrame(data_validate)
+        return df_train, df_test, df_val
+    elif (cat_labels == True and validate == False):
+        df_balanced = balance_data(df, sample_size=ssize)
+        df_test = df.drop(df_balanced.index)
+        data = list(map(extract_data, df_balanced[pathcol], pathcol))
+        data_test = list(map(extract_data, df_test[pathcol], pathcol))
+        df_train = pd.DataFrame(data)
+        df_test = pd.DataFrame(data_test)
+        return df_train, df_test
     else:
-        df = pd.read_csv(filename)
-        data = {
-            'image': list(),
-            'cat': list(),
-            'class': list()
-        }
-        df['classification'] = pd.Categorical(df['classification'])
-        df['enclassification'] = df['classification'].cat.codes
-        df['LeftRight'] = pd.Categorical(df['LeftRight'])
-        df['enLeftRight'] = df['LeftRight'].cat.codes
-        simcoder = CategoryEncoding(num_tokens = 2, output_mode="one_hot")
-        for i, row in df.iterrows():
-            ds = dcmread(row['paths'])
-            img = ds.pixel_array
-            img_mod = rescale_image(img)
-            #print(img_mod.shape)
-            data['image'].append(img_mod)
-            data['cat'].append([row['enLeftRight'], row['Age']])
-            data['class'].append(simcoder(row['enclassification']))
-        data['image'] = np.asarray(data['image'])
-        data['cat'] = np.asarray(data['cat'])
-        data['class'] = np.asarray(data['class'])
-        return data, None
+        print('None of the conditions were met')
+        exit()
 
 def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
     """Load the data used  for testing.
