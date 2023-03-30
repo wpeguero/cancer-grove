@@ -181,26 +181,42 @@ def extract_data(file, target_data:list =[]) -> dict:
         pass
     elif slices.ndim >= 3:
         slices = slices[0]
+    slices = slices[:, ~np.all(slices == 0, axis = 0)]
     slices = rescale_image(slices)
     datapoint['image'] = slices
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
 
-def transform_data(datapoint:dict) -> dict:
+def transform_data(datapoint:dict, definitions:dict) -> dict:
     """ Transform the data into an format that can be used for displaying and modeling.
 
     ...
 
-    Grabs the extracted data and begins transforming
-    the data into a format that can be used for
-    display in a dashboard as well as for modeling
-    purposes.
+    Transforms the textual categorical data into numerical
+    to input the data into the machine learning model. This
+    function depends upon two dictionaries, one containing
+    the data and the other a set of references that can be
+    used to transform the textual categorical values into
+    the numerical values. This function also removes the 
+    area of the image that contains columns whose values
+    are zero.
 
     Parameters
     ----------
     datapoint : dictionary
         Contains the image and related metadata in
         `key:value` pair format.
+    
+    definitions : dictionary
+        Set of values found within the data point and their
+        definitions. This will contain the column value and
+        the meaning of each categorical value. The nature
+        of this could be the following:
+        EX.: {
+            key:{
+                "category":1
+                }
+            }
     
     Returns
     -------
@@ -216,50 +232,11 @@ def transform_data(datapoint:dict) -> dict:
     KeyError
         Indicator of the `key` does not exists.
     """
-    keys = datapoint.keys()
-    if 'sex' in keys:
-        if datapoint['sex'] == 'F':
-            datapoint['sex'] = 0
-        elif datapoint['sex'] == 'M':
-            datapoint['sex'] = 1
+    for key, values in definitions.items():
+        if key in datapoint.keys():
+            datapoint[key] = values[datapoint.get(key)]
         else:
-            datapoint['sex'] = 2
-    else:
-        pass
-    if 'age' in keys:
-        if 'Y' in datapoint['age']:
-            datapoint['age'] = datapoint['age'].replace('Y', '')
-            datapoint['age'] = int(datapoint['age'])
-        else:
-            pass
-        datapoint['age'] = int(datapoint['age'])
-    else:
-        pass
-    if 'side' in keys:
-        if datapoint['side'] == 'L':
-            datapoint['side'] = 0
-        elif datapoint['side'] == 'R':
-            datapoint['side'] = 1
-        else:
-            datapoint['side'] = 2
-    else:
-        pass
-    if 'weight' in keys:
-        datapoint['weight'] = int(datapoint['weight'])
-    else:
-        pass
-    if 'modality' in keys:
-        if datapoint['modality'] == 'MR':
-            datapoint['modality'] = 0
-        elif datapoint['modality'] == 'CT':
-            datapoint['modality'] = 1
-        elif datapoint['modality'] == 'PT':
-            datapoint['modality'] = 2
-        else:
-            datapoint['modality'] = 3
-    else:
-        pass
-
+            print(f'WARNING: Indicator "{key}" could not be found within the data point.')
     try:
         img = datapoint['image']
         img = img[:, ~np.all(img == 0, axis = 0)]
