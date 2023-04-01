@@ -1,6 +1,6 @@
 """Set of tests for observing the functionality of the algoriths."""
 import unittest
-import src.pipeline as pipeline
+import pipeline as pipeline
 
 sample = "./data/CMMD-set/sample_data/D1-0820_1-4.dcm"
 

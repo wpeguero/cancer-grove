@@ -1,6 +1,6 @@
 """Set of functions and algorithms to observe model training."""
 import pandas as pd
-import matplotlib.pyplot as plt
+import plotly.express as px
 
 def _main():
     pass

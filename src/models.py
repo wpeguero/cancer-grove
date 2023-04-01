@@ -22,46 +22,7 @@ validate = False
 version=17
 
 def _main():
-    inputs, output = tumor_classifier(1147, 957)
-    model = Model(inputs=inputs, outputs=output)
-    #model.build(input_shape=(800,800))
-    plot_model(model, show_shapes=True, to_file='./models/model_architechtures/model_VGG{}.png'.format(version))
-    
-    model.compile(optimizer='Adagrad', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)])
-    filename = "data/CMMD-set/clinical_data_with_unique_paths.csv"
-    tfrecordname = 'data/CMMD-set/saved_data3'
-    tfrecordname = None
-    if tfrecordname is None:
-        print("\nLoading data for training...\n")
-        data, vdata = load_training_data(filename, first_training=True, validate=validate, ssize=tsize)
-        y = data['class']
-        data.pop('class')
-        dataset = tf.data.Dataset.from_tensor_slices((data, y)).batch(BATCH_SIZE)
-        if validate == True:
-            y_val = vdata['class']
-            vdata.pop('class')
-            vdataset = tf.data.Dataset.from_tensor_slices((vdata, y_val)).batch(BATCH_SIZE)
-        else:
-            pass
-    else:
-        print("\nLoading TFRecord...\n")
-        dataset = tf.data.Dataset.load('data/CMMD-set/saved_data3')
-    dataset = dataset.shuffle(buffer_size=1_500).prefetch(tf.data.AUTOTUNE)
-    tf.data.Dataset.save(dataset, 'data/CMMD-set/saved_data3')
-    #trainds = dataset.random(seed=4).take(2808)
-    #testds = dataset.random(seed=4).skip(2808)
-    #trainds = trainds.shuffle(buffer_size=1_000).prefetch(tf.data.AUTOTUNE)
-    #exit()
-    #logs = './data/trainlogs/' + datetime.datetime.now().strftime("%Y%m%d - %H%M%S")
-    #tb_callback1 = tf.keras.callbacks.TensorBoard(log_dir=logs, histogram_freq=1, profile_batch=20)
-    #tb_callback2 = tf.keras.callbacks.TensorBoard(log_dir=logs, histogram_freq=1, profile_batch=40)
-    cppath = "models/weights/VGG{}.ckpt".format(version)
-    cpdir = os.path.dirname(cppath)
-    #cp_callback = tf.keras.callbacks.ModelCheckpoint(filepath=cppath, monitor='loss', save_weights_only=True, verbose=1)
-    thistory = model.fit(dataset, epochs=50)
-    save_model(model,'./models/tclass_VGG{}'.format(version))
-    hist_df = pd.DataFrame(thistory.history)
-    hist_df.to_csv('history_VGG{}.csv'.format(version))
+    pass
 
 
 def base_image_classifier(img_height:float, img_width:float):

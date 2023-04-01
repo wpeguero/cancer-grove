@@ -24,11 +24,9 @@ import pydicom as pdcm
 from PIL import Image
 import matplotlib.pyplot as plt
 from pydicom.errors import InvalidDicomError
-from tensorflow.keras.layers import CategoryEncoding
-from tensorflow.keras.models import load_model
+from keras.layers import CategoryEncoding
+from keras.models import load_model
 from tensorflow.nn import softmax
-from tensorflow import data
-from tensorflow import keras
 import plotly.express as px
 
 
@@ -36,8 +34,7 @@ import plotly.express as px
 def _main():
     """Test the new functions."""
     dicom__file = "data/DBCMRI/Duke-Breast-Cancer-MRI/Breast_MRI_002/01-01-1990-NA-MRI BREAST BILATERAL W  WO-51972/600.000000-ax 3d dyn-25442/1-125.dcm"
-    dfile = dcmread(dicom__file)
-    print(dfile.PatientID)
+    extract_data(dicom__file)
 
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
@@ -181,8 +178,6 @@ def extract_data(file, target_data:list =[]) -> dict:
         pass
     elif slices.ndim >= 3:
         slices = slices[0]
-    slices = slices[:, ~np.all(slices == 0, axis = 0)]
-    slices = rescale_image(slices)
     datapoint['image'] = slices
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
