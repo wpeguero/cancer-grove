@@ -13,7 +13,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model, split_dataset
 from tensorflow.keras.models import save_model
 import tensorflow as tf
-from src.pipeline import load_data, load_training_data
+from src.pipeline import load_training_data
 import pandas as pd
 
 tsize = 1_500
