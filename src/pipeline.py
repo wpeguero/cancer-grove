@@ -77,7 +77,8 @@ def extract_key_images(data_dir:str, metadata_filename:str, new_download = False
 
     Grabs the images from the full directory and
     moves them to a separate directory for keeping
-    only the key data."""
+    only the key data.
+    """
     if not new_download:
         return None
     else:
@@ -114,13 +115,13 @@ def extract_data(file, target_data:list =[]) -> dict:
 
     Parameters
     ---------
-    file : Unknown 
+    file : Unknown
         Either the path to the file or the file itself.
         In the case that the .dcm file is already
         loaded, the algorithm will proceed to extract
         the data. Otherwise, the algorithm will load
         the .dcm file and extract the necessary data.
-    
+
     target_data : List
         This contains all of the tag names that will be
         used as part of the data extraction. In the case
@@ -136,7 +137,7 @@ def extract_data(file, target_data:list =[]) -> dict:
         `key:value` pair. This only pertains to the
         patient data and NOT the metadata describing
         how the image was taken.
-    
+
     Raises
     ------
     InvalidDicomError
@@ -145,7 +146,7 @@ def extract_data(file, target_data:list =[]) -> dict:
         stop the algorithm in the case that any other
         filetype is introduced. Causes an error to be
         printed and the program to exit.
-    
+
     AttributeError
         Occurs in the case that the DICOM file does
         not contain some of the metadata used for
@@ -159,6 +160,7 @@ def extract_data(file, target_data:list =[]) -> dict:
             ds = dcmread(file)
         except (InvalidDicomError) as e:
             print(f"ERROR: The file {file} is not a DICOM file and therefore cannot be read.")
+            print(e)
             exit()
     else:
         ds = file
@@ -181,25 +183,22 @@ def extract_data(file, target_data:list =[]) -> dict:
     return datapoint
 
 def transform_data(datapoint:dict, definitions:dict) -> dict:
-    """ Transform the data into an format that can be used for displaying and modeling.
+    """Transform the data into an format that can be used for displaying and modeling.
 
     ...
-
     Transforms the textual categorical data into numerical
     to input the data into the machine learning model. This
     function depends upon two dictionaries, one containing
     the data and the other a set of references that can be
     used to transform the textual categorical values into
-    the numerical values. This function also removes the 
+    the numerical values. This function also removes the
     area of the image that contains columns whose values
     are zero.
-
     Parameters
     ----------
     datapoint : dictionary
         Contains the image and related metadata in
         `key:value` pair format.
-    
     definitions : dictionary
         Set of values found within the data point and their
         definitions. This will contain the column value and
@@ -210,18 +209,15 @@ def transform_data(datapoint:dict, definitions:dict) -> dict:
                 "category":1
                 }
             }
-    
     Returns
     -------
-    datapoint :dictionary
+    datapoint : dictionary
         same dictionary with the categorical data
         transformed into numerical (from text).
-    
     Raises
     ------
     AttributeError
         Indicator of the `key` does not exists.
-    
     KeyError
         Indicator of the `key` does not exists.
     """
@@ -235,7 +231,7 @@ def transform_data(datapoint:dict, definitions:dict) -> dict:
         img = img[:, ~np.all(img == 0, axis = 0)]
         img_mod = rescale_image(img)
         datapoint['image'] = img_mod
-    except (AttributeError, KeyError) as e:
+    except (AttributeError, KeyError):
         print('WARNING: Indicator "image" does not exist.')
     return datapoint
 
@@ -288,6 +284,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
 
 def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int=1000, cat_labels:list=[]):
     """Load the DICOM data as a dictionary.
+
     ...
 
     Creates a dictionary containing three different
@@ -303,14 +300,14 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
         classification, and path to the DICOM file.
         Will also contain some sort of ID to better
         identify the samples.
-    
+
     validate : Boolean
         Conditional statement that determines whether the
         data requires a split between training and
         validation. In the case that this is False, then
         the data set is not split between training and
         validation.
-    
+
     cat_labels : unknown
         Contains all of the labels that will be used within
         the training set. These labels are meant to be the
