@@ -1,7 +1,7 @@
 """Test models and model library for capstone project."""
 from src.models import *
 from src.pipeline import load_testing_data, predict, calculate_confusion_matrix
-from tensorflow.keras.models import Model, load_model
+from tensorflow.keras.models import Model
 from numpy import ndarray
 from tensorflow.keras.losses import CategoricalCrossentropy
 import pytest
@@ -52,4 +52,3 @@ def test_model_accuracy(create_test_data): #This test is not failing
 
 if __name__ == "__main__":
     pytest.main()
-    

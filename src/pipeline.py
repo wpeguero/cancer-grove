@@ -30,8 +30,12 @@ from tensorflow.nn import softmax
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    dicom__file = "data/DBCMRI/Duke-Breast-Cancer-MRI/Breast_MRI_002/01-01-1990-NA-MRI BREAST BILATERAL W  WO-51972/600.000000-ax 3d dyn-25442/1-125.dcm"
-    extract_data(dicom__file)
+    filename = "data/for_tests/test_filepaths.csv"
+    fname = "data/DBCMRI/Breast-Cancer-MRI-filepath_filename-mapping1.xlsx"
+    df = pd.read_excel(fname)
+    df['descriptive_path'] = df['descriptive_path'].map("data/DBCMRI/{}".format)
+    df.to_csv(filename)
+    df_train, df_test = load_training_data(filename, pathcol="descriptive_path")
 
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
@@ -322,7 +326,7 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
     """
     df = pd.read_csv(filename)
     #data = dict()
-    if (cat_labels == False and validate == True):
+    if bool(cat_labels) == False and validate == True:
         df_balanced = balance_data(df, sample_size=ssize)
         df_test = df.drop(df_balanced.index)
         df_validate = balance_data(df_test, sample_size=int(0.5*ssize))
@@ -333,7 +337,7 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
         df_test = pd.DataFrame(df_test)
         df_val = pd.DataFrame(data_validate)
         return df_train, df_test, df_val
-    elif (cat_labels == False and validate == False):
+    elif bool(cat_labels) == False and validate == False:
         df_balanced = balance_data(df, sample_size=ssize)
         df_test = df.drop(df_balanced.index)
         data = list(map(extract_data, df_balanced[pathcol]))
@@ -341,7 +345,7 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
         df_train = pd.DataFrame(data)
         df_test = pd.DataFrame(data_test)
         return df_train, df_test
-    elif (cat_labels == True and validate == True):
+    elif bool(cat_labels) == True and validate == True:
         df_balanced = balance_data(df, sample_size=ssize)
         df_test = df.drop(df_balanced.index)
         df_validate = balance_data(df_test, sample_size=int(0.5*ssize))
@@ -352,7 +356,7 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
         df_test = pd.DataFrame(df_test)
         df_val = pd.DataFrame(data_validate)
         return df_train, df_test, df_val
-    elif (cat_labels == True and validate == False):
+    elif bool(cat_labels) == True and validate == False:
         df_balanced = balance_data(df, sample_size=ssize)
         df_test = df.drop(df_balanced.index)
         data = list(map(extract_data, df_balanced[pathcol], pathcol))
@@ -366,7 +370,7 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
 
 def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
     """Load the data used  for testing.
-    
+
     Loads a dataset to be fed into the model for making
     predictions. The output of the testing data will be
     comprised of a dictionary that can be fed directly into

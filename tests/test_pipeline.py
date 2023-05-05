@@ -43,5 +43,10 @@ def test_data_balance():
     df_bal = balance_data(df, columns=['Segmentation Label'],sample_size=sample_size)
     assert len(df_bal) == pytest.approx(sample_size, abs=0.01*sample_size)
 
+def test_load_training_data():
+    """Tests whether the load_training_data function loads the data for model training."""
+    pass
+
+
 if __name__ == "__main__":
     pytest.main()
