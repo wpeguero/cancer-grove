@@ -1,4 +1,5 @@
-"""Pipeline Module
+"""Pipeline Module.
+
 ------------------
 
 Algorithms used to process data before modeling.
@@ -20,14 +21,10 @@ import json
 import numpy as np
 import pandas as pd
 from pydicom import dcmread
-import pydicom as pdcm
 from PIL import Image
-import matplotlib.pyplot as plt
 from pydicom.errors import InvalidDicomError
-from keras.layers import CategoryEncoding
 from keras.models import load_model
 from tensorflow.nn import softmax
-import plotly.express as px
 
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
@@ -57,7 +54,7 @@ def _remove_first_row(filepath:str, nfilepath:str):
 
 def _convert_dicom_to_png(filename:str) -> None:
     """Convert a list of dicom files into their png forms.
-    
+
     ...
     """
     df = pd.read_csv(filename)
@@ -71,10 +68,11 @@ def _convert_dicom_to_png(filename:str) -> None:
         scaled_image = np.uint8(scaled_image)
         final_image = Image.fromarray(scaled_image)
         final_image.save(f"data/CMMD-set/classifying_set/raw_png/{row['Subject ID'] + '_' + name + ds.ImageLaterality}.png")
+    return None
 
-def _extract_key_images(data_dir:str, metadata_filename:str, new_download = False):
+def extract_key_images(data_dir:str, metadata_filename:str, new_download = False):
     """Extract the key images based on the Annotation Boxes file.
-    
+
     ...
 
     Grabs the images from the full directory and
@@ -243,28 +241,25 @@ def transform_data(datapoint:dict, definitions:dict) -> dict:
 
 def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.DataFrame:
     """Balance data for model training.
-    
+
     Splits the dataset into groups based on the categorical
     columns provided. The function will use a for loop to
     extract samples based on predetermined categories. a
-    list of permutations will be used 
+    list of permutations will be used.
 
     Parameter(s)
     ------------
     df : Pandas DataFrame
         Contains all of the data necessary to load the
         training data set.
-    
     columns : list
         List of columns which will be used to categorize
         the data. In the case that the columns list is
         empty, then the dataset will simply be resampled.
-    
     sample_size : integer
         Describes the sample size of the dataset that
         will be used for either training or testing the
         machine learning model.
-    
     Returns
     -------
     df_balanced : Pandas DataFrame
@@ -287,7 +282,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
             else:
                 df__selected_group = df_group.sample(n=int(len(df_group)), random_state=42)
             dgroups.append(df__selected_group)
-            dsample_size += sgroup - len(df_group)
+            dsample_size += sgroup + len(df_group)
         df_balanced = pd.concat(dgroups)
     return df_balanced
 
