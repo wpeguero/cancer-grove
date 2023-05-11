@@ -30,13 +30,28 @@ from tensorflow.nn import softmax
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    filename = "data/for_tests/test_filepaths.csv"
-    fname = "data/DBCMRI/Breast-Cancer-MRI-filepath_filename-mapping1.xlsx"
-    df = pd.read_excel(fname)
-    df['descriptive_path'] = df['descriptive_path'].map("data/DBCMRI/{}".format)
-    df.to_csv(filename)
-    df_train, df_test = load_training_data(filename, pathcol="descriptive_path")
+    fn__path_to_images = "data/DBCMRI/metadata.csv"
+    #fn__path_to_slice = "data/DBCMRI/segmentation_filepath_mapping.csv"
+    df__path_to_images = pd.read_csv(fn__path_to_images)
+    list__path_to_slice = df__path_to_images['File Location'].to_list()
+    list__path_to_slice = [x.replace("\\", "/").replace("./", "data/DBCMRI/") for x in list__path_to_slice]
+    with open("full_imgs_paths.txt", "w") as fp:
+        for line in list__path_to_slice:
+            fp.write(f"{line}\n")
+        fp.close()
 
+
+def gather_segmentation_images(filename:str, paths:str):
+    """Get all of the Images with Segmentations.
+
+    Gathers all of the image slices together with the
+    respective segmentations. As this only uses the Patient
+    ID as the unique identifier, only one of the folders
+    after the patient id directory will be chosen together
+    with the image slices. The most consistent folder may
+    be used as all patients will share this folder.
+    """
+    df__segmentation = pd.read_csv(paths)
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
     df = pd.read_csv(filepath)
