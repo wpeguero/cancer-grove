@@ -50,8 +50,28 @@ def gather_segmentation_images(filename:str, paths:str):
     after the patient id directory will be chosen together
     with the image slices. The most consistent folder may
     be used as all patients will share this folder.
+
+    Parameter(s)
+    ------------
+
+    filename : string
+        filename containing the training data set with the
+        bounding boxes, and the slices or range of slices.
+
+    paths : string
+        text file containing all of the paths to the image
+        files or slices.
     """
-    df__segmentation = pd.read_csv(paths)
+    df = pd.read_csv(filename)
+    with open(paths, 'r') as fp:
+        list__paths = fp.readlines()
+        fp.close()
+    for _, row in df.iterrows():
+        patient_folder = list(filter(lambda x: row['Patient ID'] in x, list__paths))
+        list__slices = range(row['Start Slice'], row['End Slice'])
+        paths_to_slices = [filter(lambda k: k in x, list__slices) for x in patient_folder]
+        print(paths_to_slices)
+        exit()
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
     df = pd.read_csv(filepath)
