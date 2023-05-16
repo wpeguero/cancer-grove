@@ -30,15 +30,13 @@ from tensorflow.nn import softmax
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    fn__path_to_images = "data/DBCMRI/metadata.csv"
-    #fn__path_to_slice = "data/DBCMRI/segmentation_filepath_mapping.csv"
-    df__path_to_images = pd.read_csv(fn__path_to_images)
-    list__path_to_slice = df__path_to_images['File Location'].to_list()
-    list__path_to_slice = [x.replace("\\", "/").replace("./", "data/DBCMRI/") for x in list__path_to_slice]
-    with open("full_imgs_paths.txt", "w") as fp:
-        for line in list__path_to_slice:
-            fp.write(f"{line}\n")
-        fp.close()
+    #fn__path_to_slice = "data/DBCMRI/annotation_boxes.csv"
+    fn__paths = "data/DBCMRI/segmentation_filepath_mapping.csv"
+    df__paths = pd.read_csv(fn__paths)
+    df__paths['Full Descriptive Path'] = df__paths['Full Descriptive Path'].apply(lambda x: 'data/DBCMRI/' + x)
+    new_file = "data/DBCMRI/segmentation_filepath_mapping2.csv"
+    df__paths.to_csv(new_file)
+    df__train, df__test = load_training_data(new_file, 'Full Descriptive Path')
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -68,9 +66,7 @@ def gather_segmentation_images(filename:str, paths:str):
         fp.close()
     for _, row in df.iterrows():
         patient_folder = list(filter(lambda x: row['Patient ID'] in x, list__paths))
-        list__slices = range(row['Start Slice'], row['End Slice'])
-        paths_to_slices = [filter(lambda k: k in x, list__slices) for x in patient_folder]
-        print(paths_to_slices)
+        print(patient_folder)
         exit()
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
@@ -359,7 +355,13 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
         for the metadata and the transformed image
         for input to the model.
     """
-    df = pd.read_csv(filename)
+    if type(filename) == str:
+        df = pd.read_csv(filename)
+    elif type(filename) == pd.DataFrame:
+        pass
+    else:
+        print("There was some error.")
+        exit()
     #data = dict()
     if bool(cat_labels) == False and validate == True:
         df_balanced = balance_data(df, sample_size=ssize)
