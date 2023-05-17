@@ -30,13 +30,21 @@ from tensorflow.nn import softmax
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    #fn__path_to_slice = "data/DBCMRI/annotation_boxes.csv"
-    fn__paths = "data/DBCMRI/segmentation_filepath_mapping.csv"
-    df__paths = pd.read_csv(fn__paths)
-    df__paths['Full Descriptive Path'] = df__paths['Full Descriptive Path'].apply(lambda x: 'data/DBCMRI/' + x)
-    new_file = "data/DBCMRI/segmentation_filepath_mapping2.csv"
-    df__paths.to_csv(new_file)
-    df__train, df__test = load_training_data(new_file, 'Full Descriptive Path')
+    fn__calc_paths = {
+            "train":"data/CBIS-DDSM/calc_case_description_train_set.csv",
+            "test":"data/CBIS-DDSM/calc_case_description_test_set.csv"
+            }
+    fn__mass_paths = {
+            "train":"data/CBIS-DDSM/mass_case_description_train_set.csv",
+            "test":"data/CBIS-DDSM/mass_case_description_test_set.csv"
+            }
+    fn__metadata = "data/CBIS-DDSM/metadata.csv"
+    df__metadata = pd.read_csv(fn__metadata)
+    df__metadata['Full File Location'] = df__metadata['File Location'].apply(lambda x: x.replace("./", "data/CBIS-DDSM/"))
+    df__calc_test = pd.read_csv(fn__calc_paths['test'])
+    df__calc_test['Subject ID'] = 'Calc-Test_' + df__calc_test['patient_id'] + '-' + df__calc_test['left or right breast'] + '_' + df__calc_test['image view'] + '_' + df__calc_test['abnormality id'].astype(str)
+    df__metadata.to_csv("data/CBIS-DDSM/metadatav2.csv")
+    df__calc_test.to_csv(fn__calc_paths['test'])
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -365,42 +373,30 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
     #data = dict()
     if bool(cat_labels) == False and validate == True:
         df_balanced = balance_data(df, sample_size=ssize)
-        df_test = df.drop(df_balanced.index)
-        df_validate = balance_data(df_test, sample_size=int(0.5*ssize))
+        df_validate = balance_data(df.drop(df_balanced.index), sample_size=int(0.5*ssize))
         data = list(map(extract_data,df_balanced[pathcol]))
-        data_test = list(map(extract_data, df_test[pathcol]))
         data_validate = list(map(extract_data, df_validate[pathcol]))
         df_train = pd.DataFrame(data)
-        df_test = pd.DataFrame(df_test)
         df_val = pd.DataFrame(data_validate)
-        return df_train, df_test, df_val
+        return df_train, df_val
     elif bool(cat_labels) == False and validate == False:
         df_balanced = balance_data(df, sample_size=ssize)
-        df_test = df.drop(df_balanced.index)
         data = list(map(extract_data, df_balanced[pathcol]))
-        data_test = list(map(extract_data, df_test[pathcol]))
         df_train = pd.DataFrame(data)
-        df_test = pd.DataFrame(data_test)
-        return df_train, df_test
+        return df_train
     elif bool(cat_labels) == True and validate == True:
         df_balanced = balance_data(df, sample_size=ssize)
-        df_test = df.drop(df_balanced.index)
-        df_validate = balance_data(df_test, sample_size=int(0.5*ssize))
+        df_validate = balance_data(df.drop(df_balanced.index), sample_size=int(0.5*ssize))
         data = list(map(extract_data,df_balanced[pathcol], cat_labels))
-        data_test = list(map(extract_data, df_test[pathcol], cat_labels))
         data_validate = list(map(extract_data, df_validate[pathcol], cat_labels))
         df_train = pd.DataFrame(data)
-        df_test = pd.DataFrame(df_test)
         df_val = pd.DataFrame(data_validate)
-        return df_train, df_test, df_val
+        return df_train, df_val
     elif bool(cat_labels) == True and validate == False:
         df_balanced = balance_data(df, sample_size=ssize)
-        df_test = df.drop(df_balanced.index)
         data = list(map(extract_data, df_balanced[pathcol], pathcol))
-        data_test = list(map(extract_data, df_test[pathcol], pathcol))
         df_train = pd.DataFrame(data)
-        df_test = pd.DataFrame(data_test)
-        return df_train, df_test
+        return df_train
     else:
         print('None of the conditions were met')
         exit()
@@ -417,7 +413,7 @@ def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
     ------------
     filename : str
         path to file containing the file paths to test data.
-    
+
     Returns
     -------
     df__test : Pandas DataFrame
@@ -437,7 +433,7 @@ def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
     tdata = pd.DataFrame(dfp_list)
     return tdata
 
-def predict(data:pd.DataFrame, model_name) -> pd.DataFrame:
+def predict(data:pd.DataFrame, model_name, cat_inputs:list=[]) -> pd.DataFrame:
     """Make predictions based on data provided.
 
     Extracts the image data using the path column provided
@@ -451,11 +447,11 @@ def predict(data:pd.DataFrame, model_name) -> pd.DataFrame:
         file or object containing the data necessary to
         make predictions. This must contain the path column
         and the categorical columns related to the model.
-    
+
     model_name : str or TensorFlow Model
         either the path to a TensorFlow model or the model
         itself. Used to make predictions on the data.
-    
+
     Returns
     -------
     data : Pandas DataFrame
@@ -488,12 +484,12 @@ def predict(data:pd.DataFrame, model_name) -> pd.DataFrame:
 
 def rescale_image(img:np.ndarray) -> np.ndarray:
     """Rescale the image to a more manageable size.
-    
+
     Changes the size of the image based on the length and
     width of the image itself. This is to reduce the amount
     of computations required to make predictions based on
     the image.
-    
+
     Parameter(s)
     ------------
     img : Numpy Array
@@ -515,24 +511,24 @@ def rescale_image(img:np.ndarray) -> np.ndarray:
 
 def calculate_confusion_matrix(fin_predictions:pd.DataFrame):
     """Calculate the confusion matrix using pandas.
-    
+
     Calculates the confusion matrix using a csv file that
     contains both the predictions and actual labels. This
     function then creates a crosstab of the data to develop
     the confusion matrix.
-    
+
     Parameter(s)
     ------------
     fin_predictions : Pandas DataFrame
         DataFrame containing the prediction and actual
         labels.
-    
+
     Returns
     -------
     ct : Pandas DataFrame
         Cross tab containing the confusion matrix of the
         predictions compared to the actual labels.
-    
+
     metrics : Dictionary
         Contains the basic metrics obtained from the
         confusion matrix. The metrics are the following:
