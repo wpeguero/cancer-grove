@@ -38,13 +38,17 @@ def _main():
             "train":"data/CBIS-DDSM/mass_case_description_train_set.csv",
             "test":"data/CBIS-DDSM/mass_case_description_test_set.csv"
             }
-    fn__metadata = "data/CBIS-DDSM/metadata.csv"
-    df__metadata = pd.read_csv(fn__metadata)
-    df__metadata['Full File Location'] = df__metadata['File Location'].apply(lambda x: x.replace("./", "data/CBIS-DDSM/"))
+    fn__metadata = "data/CBIS-DDSM/metadatav2.csv"
+    df__calc_train = pd.read_csv(fn__calc_paths['train'])
     df__calc_test = pd.read_csv(fn__calc_paths['test'])
-    df__calc_test['Subject ID'] = 'Calc-Test_' + df__calc_test['patient_id'] + '-' + df__calc_test['left or right breast'] + '_' + df__calc_test['image view'] + '_' + df__calc_test['abnormality id'].astype(str)
-    df__metadata.to_csv("data/CBIS-DDSM/metadatav2.csv")
-    df__calc_test.to_csv(fn__calc_paths['test'])
+    df__calc = pd.concat([df__calc_train, df__calc_test], axis=0)
+    df__mass_train = pd.read_csv(fn__mass_paths['train'])
+    df__mass_test = pd.read_csv(fn__mass_paths['test'])
+    df__mass = pd.concat([df__mass_train, df__mass_test], axis=0)
+    df__full_data = pd.concat([df__mass, df__calc], axis=0)
+    df__metadata = pd.read_csv(fn__metadata)
+    df__complete = pd.merge(df__metadata, df__full_data, on="Subject ID")
+    df__complete.to_csv("data/CBIS-DDSM/complete_dataset.csv", index=False)
 
 
 def gather_segmentation_images(filename:str, paths:str):
