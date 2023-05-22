@@ -25,30 +25,28 @@ from PIL import Image
 from pydicom.errors import InvalidDicomError
 from keras.models import load_model
 from tensorflow.nn import softmax
+import plotly.express as px
 
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    fn__calc_paths = {
-            "train":"data/CBIS-DDSM/calc_case_description_train_set.csv",
-            "test":"data/CBIS-DDSM/calc_case_description_test_set.csv"
-            }
-    fn__mass_paths = {
-            "train":"data/CBIS-DDSM/mass_case_description_train_set.csv",
-            "test":"data/CBIS-DDSM/mass_case_description_test_set.csv"
-            }
-    fn__metadata = "data/CBIS-DDSM/metadatav2.csv"
-    df__calc_train = pd.read_csv(fn__calc_paths['train'])
-    df__calc_test = pd.read_csv(fn__calc_paths['test'])
-    df__calc = pd.concat([df__calc_train, df__calc_test], axis=0)
-    df__mass_train = pd.read_csv(fn__mass_paths['train'])
-    df__mass_test = pd.read_csv(fn__mass_paths['test'])
-    df__mass = pd.concat([df__mass_train, df__mass_test], axis=0)
-    df__full_data = pd.concat([df__mass, df__calc], axis=0)
-    df__metadata = pd.read_csv(fn__metadata)
-    df__complete = pd.merge(df__metadata, df__full_data, on="Subject ID")
-    df__complete.to_csv("data/CBIS-DDSM/complete_dataset.csv", index=False)
+    fn__clean_dataset = "data/CBIS-DDSM/clean_dataset.csv"
+    df__clean_dataset = pd.read_csv(fn__clean_dataset)
+    df__clean_dataset.fillna("Not Applicable", inplace=True)
+    features = df__clean_dataset[['left or right breast', 'breast_density', 'abnormality type', 'mass shape', 'mass margins', 'assessment', 'pathology', 'subtlety', 'breast density', 'calc type', 'calc distribution']]
+    path_to_images = df__clean_dataset[['Full File Location', 'Series Description', 'Subject ID']]
+    list__path_to_images = list()
+    for i, row in path_to_images.iterrows():
+        paths = list(pathlib.Path(row['Full File Location']).glob('*.dcm'))
+        if len(paths) > 1:
+            for path in paths:
+                list__path_to_images.append({'Subject ID': row['Subject ID'], 'Series Description': row['Series Description'], 'Full Location': path})
+        else:
+            list__path_to_images.append({'Subject ID': row['Subject ID'], 'Series Description': row['Series Description'], 'Full Location': paths[0]})
+    df__file_paths = pd.DataFrame(list__path_to_images)
+    df__full_clean = pd.merge(df__clean_dataset, df__file_paths, on=['Subject ID', 'Series Description'])
+    df__full_clean.to_csv("data/CBIS-DDSM/fully_clean_dataset.csv", index=False)
 
 
 def gather_segmentation_images(filename:str, paths:str):
