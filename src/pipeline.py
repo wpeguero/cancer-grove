@@ -298,21 +298,23 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
         df_balanced = df.sample(n=sample_size, random_state=42)
     else:
         groups = df.groupby(columns)
-        igroups = len(groups.groups)
-        sgroup = int(sample_size / igroups)
-        dgroups = list()
-        dsample_size = 0
+        number_groups = len(groups.groups)
+        sample_group_size = int(sample_size / number_groups)
+        sampled_groups = list()
+        diff_sample_size = 0
         for gtype, df_group in groups:
-            fgroup = sgroup + dsample_size
+            fgroup = sample_group_size + diff_sample_size
             if len(df_group) >= fgroup:
                 df__selected_group = df_group.sample(n=int(fgroup), random_state=42)
-            elif len(df_group) >= sgroup:
-                df__selected_group = df_group.sample(n=int(sgroup), random_state=42)
+            elif len(df_group) >= sample_group_size:
+                df__selected_group = df_group.sample(n=int(sample_group_size), random_state=42)
+            elif fgroup <= 0:
+                break
             else:
                 df__selected_group = df_group.sample(n=int(len(df_group)), random_state=42)
-            dgroups.append(df__selected_group)
-            dsample_size += sgroup + len(df_group)
-        df_balanced = pd.concat(dgroups)
+            sampled_groups.append(df__selected_group)
+            diff_sample_size += sample_group_size - len(df__selected_group)
+        df_balanced = pd.concat(sampled_groups)
     return df_balanced
 
 def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int=1000, cat_labels:list=[]):

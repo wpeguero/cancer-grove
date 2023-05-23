@@ -36,7 +36,7 @@ def test_data_balance():
     """Tests whether the data_balance function evenly balances the 12 data  groups."""
     sample_size = 500
     df = pd.read_csv(fn__clean_dataset)
-    df_bal = balance_data(df, sample_size=sample_size)
+    df_bal = balance_data(df, sample_size=sample_size, columns=['left or right breast','image view'])
     assert len(df_bal) == pytest.approx(sample_size, abs=0.01*sample_size)
 
 def test_load_training_data():
