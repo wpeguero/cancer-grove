@@ -15,7 +15,6 @@ Archive.
 """
 import os
 import pathlib
-from fractions import Fraction
 import json
 
 import numpy as np
@@ -25,28 +24,17 @@ from PIL import Image
 from pydicom.errors import InvalidDicomError
 from keras.models import load_model
 from tensorflow.nn import softmax
-import plotly.express as px
 
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    fn__clean_dataset = "data/CBIS-DDSM/clean_dataset.csv"
+    fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
     df__clean_dataset = pd.read_csv(fn__clean_dataset)
     df__clean_dataset.fillna("Not Applicable", inplace=True)
     features = df__clean_dataset[['left or right breast', 'breast_density', 'abnormality type', 'mass shape', 'mass margins', 'assessment', 'pathology', 'subtlety', 'breast density', 'calc type', 'calc distribution']]
-    path_to_images = df__clean_dataset[['Full File Location', 'Series Description', 'Subject ID']]
-    list__path_to_images = list()
-    for i, row in path_to_images.iterrows():
-        paths = list(pathlib.Path(row['Full File Location']).glob('*.dcm'))
-        if len(paths) > 1:
-            for path in paths:
-                list__path_to_images.append({'Subject ID': row['Subject ID'], 'Series Description': row['Series Description'], 'Full Location': path})
-        else:
-            list__path_to_images.append({'Subject ID': row['Subject ID'], 'Series Description': row['Series Description'], 'Full Location': paths[0]})
-    df__file_paths = pd.DataFrame(list__path_to_images)
-    df__full_clean = pd.merge(df__clean_dataset, df__file_paths, on=['Subject ID', 'Series Description'])
-    df__full_clean.to_csv("data/CBIS-DDSM/fully_clean_dataset.csv", index=False)
+    df_sample = df__clean_dataset.sample(n=1000, random_state=42)
+    df_train = load_training_data(df_sample, pathcol="Full Location")
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -368,7 +356,7 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
     if type(filename) == str:
         df = pd.read_csv(filename)
     elif type(filename) == pd.DataFrame:
-        pass
+        df = filename
     else:
         print("There was some error.")
         exit()
@@ -498,9 +486,8 @@ def rescale_image(img:np.ndarray) -> np.ndarray:
         array containing the raw values of images.
     """
     size = img.shape
-    frac = Fraction(size[1], size[0])
-    width = frac.numerator
-    height = frac.denominator
+    width = int(size[1] / 2)
+    height = int(size[0] / 2)
     img = img.astype(float)
     scaled_image = (np.maximum(img, 0) / img.max()) * 255
     scaled_image = np.uint8(scaled_image)

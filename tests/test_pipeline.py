@@ -4,11 +4,8 @@ from numpy import ndarray
 import pytest
 import pandas as pd
 
-file = "tests/samples/DBCMRI_BMRI2_1-030.dcm"
-sample_tag_names = [
-    'PatientID',
-    'PatientSex'
-]
+fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
+file = "data/CBIS-DDSM/CBIS-DDSM/Calc-Test_P_00038_LEFT_CC/08-29-2017-DDSM-NA-96009/1.000000-full mammogram images-63992/1-1.dcm"
 
 def test_extract_data_output():
     """Test the extraction process of the data."""
@@ -37,15 +34,17 @@ def test_rescale_image():
 
 def test_data_balance():
     """Tests whether the data_balance function evenly balances the 12 data  groups."""
-    filename = "data/DBCMRI/segmentation_filepath_mapping.csv"
     sample_size = 500
-    df = pd.read_csv(filename)
-    df_bal = balance_data(df, columns=['Segmentation Label'],sample_size=sample_size)
+    df = pd.read_csv(fn__clean_dataset)
+    df_bal = balance_data(df, sample_size=sample_size)
     assert len(df_bal) == pytest.approx(sample_size, abs=0.01*sample_size)
 
 def test_load_training_data():
     """Tests whether the load_training_data function loads the data for model training."""
-    pass
+    df = pd.read_csv(fn__clean_dataset)
+    df = df.sample(1000, random_state=42)
+    df__train = load_training_data(df, pathcol="Full Location")
+    assert len(df__train == pytest.approx(1_000, abs=0.01*1_000))
 
 
 if __name__ == "__main__":
