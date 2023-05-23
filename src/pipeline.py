@@ -295,7 +295,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
         Balanced data set ready for feature extraction.
     """
     if columns == []:
-        df_balanced = df.sample(frac=1, random_state=42)
+        df_balanced = df.sample(n=sample_size, random_state=42)
     else:
         groups = df.groupby(columns)
         igroups = len(groups.groups)
