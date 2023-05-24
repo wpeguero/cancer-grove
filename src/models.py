@@ -1,11 +1,13 @@
-"""Models Module
+"""Models Module.
+
 -----------------
 
 This file will contain all of the actualized models
 created from the abstract model class(es) made within
-the base.py file."""
+the base.py file.
+"""
 import os
-from tensorflow.keras.layers import Conv2D, Dense, Rescaling, Flatten, MaxPooling2D, Dropout, RandomZoom, Input, Concatenate, BatchNormalization
+from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization
 from tensorflow.keras.optimizers.experimental import Adagrad
 from tensorflow.keras.losses import CategoricalCrossentropy
 from tensorflow.keras.metrics import CategoricalAccuracy, AUC
@@ -26,7 +28,7 @@ def _main():
 
 
 def base_image_classifier(img_height:float, img_width:float):
-    """Basic Image Classifier for model comparison improvement.
+    """Create Basic Image Classifier for model comparison improvement.
 
     ...
 
@@ -34,7 +36,7 @@ def base_image_classifier(img_height:float, img_width:float):
     sort of image. The models stemming from this
     class will function to only classify the image
     in one manner alone (malignant or non-malignant).
-    This model will not contain any rescaling or 
+    This model will not contain any rescaling or
     data augmentation to show how significant the
     accuracy between a model with rescaling and
     data augmentation is against a model without
@@ -47,19 +49,19 @@ def base_image_classifier(img_height:float, img_width:float):
         This can be the maximum height of all images
         within the dataset to fit a varied amount
         that is equal or less than the declared height.
-    
+
     img_width : float
         The width, in pixels, of the input images.
         This can also be the maximum width of all
         images within the dataset to fit a varied
         amount that is equal or smaller in width
         to the declared dimension.
-    
+
     batch_size : int
         One of the factors of the total sample size.
         This is done to better train the model without
         allowing the model to memorize the data.
-    
+
     Returns
     -------
     inputs : {img_input, cat_input}
@@ -69,7 +71,7 @@ def base_image_classifier(img_height:float, img_width:float):
         categorical input is a 1D array containing
         patient information. This is mainly comprised
         of categorical data, but some nominal data.
-    
+
     x : Dense Layer
         The last layer of the model developed. As
         the model is fed through as the input of
@@ -105,7 +107,7 @@ def base_image_classifier(img_height:float, img_width:float):
     return img_input, x
 
 def base_tumor_classifier(img_height:float, img_width:float):
-    """Base Tumor Classification Algorithm.
+    """Create Base Tumor Classification Algorithm.
 
     ...
 
@@ -121,14 +123,14 @@ def base_tumor_classifier(img_height:float, img_width:float):
         This can be the maximum height of all images
         within the dataset to fit a varied amount
         that is equal or less than the declared height.
-    
+
     img_width : float
         The width, in pixels, of the input images.
         This can also be the maximum width of all
         images within the dataset to fit a varied
         amount that is equal or smaller in width
         to the declared dimension.
-    
+
     Returns
     -------
     inputs : {img_input, cat_input}
@@ -138,7 +140,7 @@ def base_tumor_classifier(img_height:float, img_width:float):
         categorical input is a 1D array containing
         patient information. This is mainly comprised
         of categorical data, but some nominal data.
-    
+
     output : Dense Layer
         The last layer of the model developed. As
         the model is fed through as the input of
@@ -267,6 +269,77 @@ def tumor_classifier(img_height:float, img_width:float):
     together = Dense(13, activation='relu')(together)
     output = Dense(2, activation='sigmoid', name='class')(together)
     return inputs, output
+
+def u_net(img_height:int, img_width:int):
+    """Create UNet Model.
+
+    ---------------------
+
+    This function is used to develop a U Neural Network.
+    This model works by using Convolutional Neural Networks
+    and skipping to the end of the model in a U pattern to
+    prevent data loss and retain certain information about
+    the image.
+
+    Parameter(s)
+    ------------
+
+    img_height : integer
+        The height of the image.
+
+    img_width : integer
+        The width of the image.
+    """
+    img_input = Input(shape=(img_height, img_width, 1), name='image')
+    # First Convolutional Block
+    encx1 = Conv2D(64, (3,3), activation='relu')(img_input)
+    encx1 = Conv2D(64, (3,3), activation='relu')(encx1)
+
+    # Second Convolutional Block
+    encx2 = MaxPool2D((2,2))(encx1)
+    encx2 = Conv2D(128, (3,3), activation='relu')(encx2)
+    encx2 = Conv2D(128, (3,3), activation='relu')(encx2)
+
+    # Third Convolutional Block
+    encx3 = MaxPool2D((2,2))(encx2)
+    encx3 = Conv2D(256, (3,3), activation='relu')(encx3)
+    encx3 = Conv2D(256, (3,3), activation='relu')(encx3)
+
+    # Fourth Convolutional Block
+    encx4 = MaxPool2D((2,2))(encx3)
+    encx4 = Conv2D(512, (3,3), activation='relu')(encx4)
+    encx4 = Conv2D(512, (3,3), activation='relu')(encx4)
+
+    # Fifth Convolutional Block
+    encx5 = MaxPool2D((2,2))(encx3)
+    encx5 = Conv2D(1024, (3,3), activation='relu')(encx4)
+    encx5 = Conv2D(1024, (3,3), activation='relu')(encx4)
+
+    # Sixth Convolutional Block
+    decx6 = Conv2DTranspose(1024, (2,2), activation='relu')(encx5)
+    concat = Concatenate(axis=-1)([decx6, encx4])
+    decx6 = Conv2D(512, (3,3), activation='relu')(concat)
+    decx6 = Conv2D(512, (3,3), activation='relu')(decx6)
+
+    # Seventh Convolutional Block
+    decx7 = Conv2DTranspose(512, (2,2), activation='relu')(decx6)
+    concat = Concatenate(axis=-1)([decx7, encx3])
+    decx7 = Conv2D(256, (3,3), activation='relu')(concat)
+    decx7 = Conv2D(256, (3,3), activation='relu')(decx7)
+
+    # Eighth Convolutional Network
+    decx8 = Conv2DTranspose(256, (2,2), activation='relu')(decx7)
+    concat = Concatenate(axis=-1)([decx8, encx2])
+    decx8 = Conv2D(128, (3,3), activation='relu')(concat)
+    decx8 = Conv2D(128, (3,3), activation='relu')(decx8)
+
+    # Last convolutional Network
+    decx9 = Conv2DTranspose(128, (2,2), activation='relu')(decx8)
+    concat = Concatenate(axis=-1)([decx9, encx1])
+    decx9 = Conv2D(64, (3,3), activation='relu')(concat)
+    decx9 = Conv2D(64, (3,3), activation='relu')(decx9)
+    img_output = Conv2D(2, (1,1), activation='relu')(decx9)
+    return img_input, img_output
 
 
 if __name__ == "__main__":
