@@ -13,6 +13,7 @@ def _main():
     ds_full = dcmread(fn__image_full)
     fig_full = px.imshow(ds_full.pixel_array)
     fig_full.show()
+    print(ds.pixel_array.shape)
     ds_mask = dcmread(fn__image_mask)
     fig_mask = px.imshow(ds_mask.pixel_array)
     fig_mask.show()
