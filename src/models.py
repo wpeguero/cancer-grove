@@ -7,7 +7,7 @@ created from the abstract model class(es) made within
 the base.py file.
 """
 import os
-from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization
+from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization, Resizing
 from tensorflow.keras.optimizers.experimental import Adagrad
 from tensorflow.keras.losses import CategoricalCrossentropy
 from tensorflow.keras.metrics import CategoricalAccuracy, AUC
@@ -24,7 +24,7 @@ validate = False
 version=1
 
 def _main():
-    actual_input = (4616, 3016)
+    actual_input = (4616, 3016) #The number 4616 can by divided by 2 three times; The number 3016 can be divided by 2 three times.
     inputs, outputs = u_net(572,572)
     model = Model(inputs=inputs, outputs=outputs)
     plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
@@ -323,26 +323,30 @@ def u_net(img_height:int, img_width:int):
     encx5 = Conv2D(1024, (3,3), activation='relu')(encx5)
 
     # Sixth Convolutional Block
-    decx6 = Conv2DTranspose(512, (37,37), activation='relu')(encx5)
-    concat = Concatenate(axis=-1)([encx4, decx6])
+    decx6 = Conv2DTranspose(512, (2,2), strides=2, activation='relu')(encx5)
+    rencx4 = tf.image.resize(encx4,[decx6.shape[1], decx6.shape[2]])
+    concat = Concatenate(axis=-1)([rencx4, decx6])
     decx6 = Conv2D(512, (3,3), activation='relu')(concat)
     decx6 = Conv2D(512, (3,3), activation='relu')(decx6)
 
     # Seventh Convolutional Block
-    decx7 = Conv2DTranspose(256, (77,77), activation='relu')(decx6)
-    concat = Concatenate(axis=-1)([decx7, encx3])
+    decx7 = Conv2DTranspose(256, (2,2), strides=2, activation='relu')(decx6)
+    rencx3 = tf.image.resize(encx4, [decx7.shape[1], decx7.shape[2]])
+    concat = Concatenate(axis=-1)([decx7, rencx3])
     decx7 = Conv2D(256, (3,3), activation='relu')(concat)
     decx7 = Conv2D(256, (3,3), activation='relu')(decx7)
 
     # Eighth Convolutional Network
-    decx8 = Conv2DTranspose(128, (149,149), activation='relu')(decx7)
-    concat = Concatenate(axis=-1)([decx8, encx2])
+    decx8 = Conv2DTranspose(128, (2,2), activation='relu')(decx7)
+    rencx2 = tf.image.resize(encx2, [decx8.shape[1], decx8.shape[2]])
+    concat = Concatenate(axis=-1)([decx8, rencx2])
     decx8 = Conv2D(128, (3,3), activation='relu')(concat)
     decx8 = Conv2D(128, (3,3), activation='relu')(decx8)
 
     # Last convolutional Network
-    decx9 = Conv2DTranspose(64, (293,293), activation='relu')(decx8)
-    concat = Concatenate(axis=-1)([decx9, encx1])
+    decx9 = Conv2DTranspose(64, (2,2), activation='relu')(decx8)
+    rencx1 = tf.image.resize(encx1, [decx9.shape[1], decx9.shape[2]])
+    concat = Concatenate(axis=-1)([decx9, rencx1])
     decx9 = Conv2D(64, (3,3), activation='relu')(concat)
     decx9 = Conv2D(64, (3,3), activation='relu')(decx9)
     img_output = Conv2D(2, (1,1), activation='relu')(decx9)
