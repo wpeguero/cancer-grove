@@ -17,7 +17,9 @@ from tensorflow.keras.models import save_model
 import tensorflow as tf
 from pipeline import load_training_data
 import pandas as pd
+import gc
 
+gc.enable()
 tsize = 1_500
 BATCH_SIZE = 4
 validate = False
@@ -27,7 +29,26 @@ def _main():
     actual_input = (4616, 3016) #The number 4616 can by divided by 2 three times; The number 3016 can be divided by 2 three times.
     inputs, outputs = u_net(572,572)
     model = Model(inputs=inputs, outputs=outputs)
-    plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
+    model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)])
+    #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
+    df = pd.read_csv("data/CBIS-DDSM/fully_clean_dataset.csv")
+    df_mask = df[df['Full Location'].str.contains(r"1-2.dcm") == True]
+    df_img = df[df['Full Location'].str.contains(r"mammogram") == True]
+    input_data = load_training_data(df_img, 'Full Location', balance=False,sample_size=tsize)
+    output_data = load_training_data(df_mask, 'Full Location', balance=False,sample_size=tsize)
+    print(len(input_data))
+    print(input_data)
+    print(output_data)
+    print(len(output_data))
+    exit()
+    dataset = tf.data.Dataset.from_tensor_slices((input_data['image'], output_data['image'])).batch(BATCH_SIZE)
+    dataset = dataset.shuffle(buffer_size=1_000).prefetch(tf.data.AUTOTUNE)
+    cp_path = "models/weights/u_net{}.ckpt".format(version)
+    cp_dir = os.path.dirname(cp_path)
+    thistory = model.fit(dataset, epochs=50)
+    save_model(model, './models/u_net{}'.format(version))
+    hist_df = pd.DataFrame(thistory.history)
+    hist_df.to_csv("data/history_unet{}.csv".format(version))
 
 
 def base_image_classifier(img_height:float, img_width:float):

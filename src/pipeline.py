@@ -197,8 +197,10 @@ def extract_data(file, target_data:list =[]) -> dict:
             exit()
     else:
         ds = file
+
     datapoint = dict()
     slices = ds.pixel_array
+    slices = np.asarray(slices).astype('float32')
     if target_data == []:
         pass
     else:
@@ -207,6 +209,7 @@ def extract_data(file, target_data:list =[]) -> dict:
                 datapoint[str(target)] = ds[target].value
             else:
                 pass
+
     if slices.ndim <= 2:
         pass
     elif slices.ndim >= 3:
@@ -317,7 +320,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
         df_balanced = pd.concat(sampled_groups)
     return df_balanced
 
-def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int=1000, cat_labels:list=[]):
+def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size:int=1_000, cat_labels:list=[]):
     """Load the DICOM data as a dictionary.
 
     ...
@@ -363,30 +366,18 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
         print("There was some error.")
         exit()
     #data = dict()
-    if bool(cat_labels) == False and validate == True:
-        df_balanced = balance_data(df, sample_size=ssize)
-        df_validate = balance_data(df.drop(df_balanced.index), sample_size=int(0.5*ssize))
-        data = list(map(extract_data,df_balanced[pathcol]))
-        data_validate = list(map(extract_data, df_validate[pathcol]))
-        df_train = pd.DataFrame(data)
-        df_val = pd.DataFrame(data_validate)
-        return df_train, df_val
-    elif bool(cat_labels) == False and validate == False:
-        df_balanced = balance_data(df, sample_size=ssize)
+    if balance == True:
+        df_balanced = balance_data(df, sample_size=sample_size)
+    else:
+        df_balanced = df.sample(n=sample_size, random_state=42)
+
+    if bool(cat_labels) == False:
         data = list(map(extract_data, df_balanced[pathcol]))
         df_train = pd.DataFrame(data)
         return df_train
-    elif bool(cat_labels) == True and validate == True:
-        df_balanced = balance_data(df, sample_size=ssize)
-        df_validate = balance_data(df.drop(df_balanced.index), sample_size=int(0.5*ssize))
-        data = list(map(extract_data,df_balanced[pathcol], cat_labels))
-        data_validate = list(map(extract_data, df_validate[pathcol], cat_labels))
-        df_train = pd.DataFrame(data)
-        df_val = pd.DataFrame(data_validate)
-        return df_train, df_val
-    elif bool(cat_labels) == True and validate == False:
-        df_balanced = balance_data(df, sample_size=ssize)
-        data = list(map(extract_data, df_balanced[pathcol], pathcol))
+    elif bool(cat_labels) == True:
+        full_labels = cat_labels * len(cat_labels) * len(df_balanced)
+        data = list(map(extract_data, df_balanced[pathcol], full_labels))
         df_train = pd.DataFrame(data)
         return df_train
     else:
