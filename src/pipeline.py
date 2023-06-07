@@ -18,6 +18,7 @@ import pathlib
 import json
 
 import numpy as np
+import dask.array as da
 import pandas as pd
 from pydicom import dcmread
 from PIL import Image
@@ -188,9 +189,11 @@ def extract_data(file, target_data:list =[]) -> dict:
         continues on with the classification and some
         plots may be missing from the second page.
     """
+    datapoint = dict()
     if type(file) == str:
         try:
             ds = dcmread(file)
+            datapoint['Full Location'] = file
         except (InvalidDicomError) as e:
             print(f"ERROR: The file {file} is not a DICOM file and therefore cannot be read.")
             print(e)
@@ -198,9 +201,9 @@ def extract_data(file, target_data:list =[]) -> dict:
     else:
         ds = file
 
-    datapoint = dict()
-    slices = ds.pixel_array
-    slices = np.asarray(slices).astype('float32')
+    #slices = np.asarray(ds.pixel_array).astype('float32')
+    slices = da.asarray(ds.pixel_array).astype('float32')
+    slices = (slices - np.min(slices)) / (np.max(slices) - np.min(slices))
     if target_data == []:
         pass
     else:
@@ -372,14 +375,16 @@ def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size
         df_balanced = df.sample(n=sample_size, random_state=42)
 
     if bool(cat_labels) == False:
-        data = list(map(extract_data, df_balanced[pathcol]))
-        df_train = pd.DataFrame(data)
-        return df_train
+        data = map(extract_data, df_balanced[pathcol])
+        df = pd.DataFrame(list(data))
+        df_full = pd.merge(df_balanced, df, on=pathcol)
+        return df_full
     elif bool(cat_labels) == True:
         full_labels = cat_labels * len(cat_labels) * len(df_balanced)
-        data = list(map(extract_data, df_balanced[pathcol], full_labels))
-        df_train = pd.DataFrame(data)
-        return df_train
+        data = map(extract_data, df_balanced[pathcol], full_labels)
+        df = pd.DataFrame(list(data))
+        df_full = pd.merge(df, df_balanced, on=pathcol)
+        return df_full
     else:
         print('None of the conditions were met')
         exit()
