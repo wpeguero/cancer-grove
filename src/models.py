@@ -19,7 +19,7 @@ from pipeline import load_training_data
 import pandas as pd
 import tracemalloc
 
-tsize = 10
+tsize = 100
 BATCH_SIZE = 4
 validate = False
 version=1
@@ -27,9 +27,9 @@ version=1
 def _main():
     tracemalloc.start()
     actual_input = (4616, 3016) #The number 4616 can by divided by 2 three times; The number 3016 can be divided by 2 three times.
-    inputs, outputs = u_net(572,572)
+    inputs, outputs = u_net(actual_input[0], actual_input[1])
     model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)])
+    model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
     #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
     df = pd.read_csv("data/CBIS-DDSM/fully_clean_dataset.csv")
     df_mask = df[df['Full Location'].str.contains(r"1-2.dcm") == True]
@@ -38,14 +38,15 @@ def _main():
     output_data = load_training_data(df_mask, 'Full Location', balance=False,sample_size=tsize)
     input_data = input_data[['Subject ID', 'image']]
     output_data = output_data[['Subject ID', 'image']]
-    dataset = pd.merge(input_data, output_data, on="Subject ID")
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    print("[ Top 10 ]")
-    for stat in top_stats[:10]:
-        print(stat)
+    rdataset = pd.merge(input_data, output_data, on="Subject ID")
+    x = rdataset['image_x'].tolist()
+    y = rdataset['image_y'].tolist()
+    xshapes = [ar.shape for ar in x]
+    yshapes = [ar.shape for ar in y]
+    print(f"The total number of unique shapes in x total: {len(set(xshapes))}.\nThe shapes are {set(xshapes)}")
+    print(f"The total number of unique shapes in y total: {len(set(yshapes))}.\nThe shapes are {set(yshapes)}")
     exit()
-    dataset = tf.data.Dataset.from_tensor_slices((input_data['image'], output_data['image'])).batch(BATCH_SIZE)
+    dataset = tf.data.Dataset.from_tensors((x,y)).batch(BATCH_SIZE)
     dataset = dataset.shuffle(buffer_size=1_000).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
     cp_dir = os.path.dirname(cp_path)
@@ -53,6 +54,11 @@ def _main():
     save_model(model, './models/u_net{}'.format(version))
     hist_df = pd.DataFrame(thistory.history)
     hist_df.to_csv("data/history_unet{}.csv".format(version))
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    print("[ Top 10 ]")
+    for stat in top_stats[:10]:
+        print(stat)
 
 
 def base_image_classifier(img_height:float, img_width:float):

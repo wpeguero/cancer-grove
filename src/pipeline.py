@@ -201,9 +201,9 @@ def extract_data(file, target_data:list =[]) -> dict:
     else:
         ds = file
 
-    #slices = np.asarray(ds.pixel_array).astype('float32')
-    slices = da.asarray(ds.pixel_array).astype('float32')
-    slices = (slices - np.min(slices)) / (np.max(slices) - np.min(slices))
+    slices = np.asarray(ds.pixel_array).astype('float32')
+    #slices = da.asarray(ds.pixel_array).astype('float32')
+    #slices = (slices - np.min(slices)) / (np.max(slices) - np.min(slices))
     if target_data == []:
         pass
     else:
