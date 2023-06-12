@@ -31,9 +31,15 @@ def _main():
     model = Model(inputs=inputs, outputs=outputs)
     model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
     #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
-    df = pd.read_csv("data/CBIS-DDSM/fully_clean_dataset.csv")
-    df_mask = df[df['Full Location'].str.contains(r"1-2.dcm") == True]
+    df = pd.read_csv("data/CBIS-DDSM/fully_clean_datasetv2.csv")
+    print(df['image width'].value_counts())
+    df = df[df['image width'] == 5491]
+    df_mask = df[df['Full Location'].str.contains(r"mask") == True]
     df_img = df[df['Full Location'].str.contains(r"mammogram") == True]
+    print(len(df))
+    print(len(df_mask))
+    print(len(df_img))
+    exit()
     input_data = load_training_data(df_img, 'Full Location', balance=False,sample_size=tsize)
     output_data = load_training_data(df_mask, 'Full Location', balance=False,sample_size=tsize)
     input_data = input_data[['Subject ID', 'image']]
