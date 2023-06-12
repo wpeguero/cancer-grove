@@ -32,10 +32,16 @@ def _main():
     """Test the new functions."""
     fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
     df__clean_dataset = pd.read_csv(fn__clean_dataset)
-    df__clean_dataset.fillna("Not Applicable", inplace=True)
-    features = df__clean_dataset[['left or right breast', 'breast_density', 'abnormality type', 'mass shape', 'mass margins', 'assessment', 'pathology', 'subtlety', 'breast density', 'calc type', 'calc distribution']]
-    df_sample = df__clean_dataset.sample(n=1000, random_state=42)
-    df_train = load_training_data(df_sample, pathcol="Full Location")
+    img_width = list()
+    img_height = list()
+    for _, row in df__clean_dataset.iterrows():
+        dicom_file = dcmread(row['Full Location'])
+        img = dicom_file.pixel_array
+        img_width.append(img.shape[0])
+        img_height.append(img.shape[1])
+    df__clean_dataset['image width'] = img_width
+    df__clean_dataset['image height'] = img_height
+    df__clean_dataset.to_csv('data/CBIS-DDSM/fully_clean_datasetv2.csv')
 
 
 def gather_segmentation_images(filename:str, paths:str):
