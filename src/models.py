@@ -19,8 +19,8 @@ from pipeline import load_training_data
 import pandas as pd
 import tracemalloc
 
-tsize = 100
-BATCH_SIZE = 4
+tsize = 8
+BATCH_SIZE = 2
 validate = False
 version=1
 
@@ -32,14 +32,15 @@ def _main():
     model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
     #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
     df = pd.read_csv("data/CBIS-DDSM/fully_clean_datasetv2.csv")
-    print(df['image width'].value_counts())
     df = df[df['image width'] == 5491]
+    df = df[df['image height'] == 2911]
+    #df = df[df['image height'] == 3104]
     df_mask = df[df['Full Location'].str.contains(r"mask") == True]
     df_img = df[df['Full Location'].str.contains(r"mammogram") == True]
-    print(len(df))
-    print(len(df_mask))
     print(len(df_img))
-    exit()
+    print(len(df_mask))
+    print(len(df))
+    print(df['image height'].value_counts())
     input_data = load_training_data(df_img, 'Full Location', balance=False,sample_size=tsize)
     output_data = load_training_data(df_mask, 'Full Location', balance=False,sample_size=tsize)
     input_data = input_data[['Subject ID', 'image']]
@@ -51,9 +52,8 @@ def _main():
     yshapes = [ar.shape for ar in y]
     print(f"The total number of unique shapes in x total: {len(set(xshapes))}.\nThe shapes are {set(xshapes)}")
     print(f"The total number of unique shapes in y total: {len(set(yshapes))}.\nThe shapes are {set(yshapes)}")
-    exit()
-    dataset = tf.data.Dataset.from_tensors((x,y)).batch(BATCH_SIZE)
-    dataset = dataset.shuffle(buffer_size=1_000).prefetch(tf.data.AUTOTUNE)
+    dataset = tf.data.Dataset.from_tensor_slices((x,y))
+    #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
     cp_dir = os.path.dirname(cp_path)
     thistory = model.fit(dataset, epochs=50)

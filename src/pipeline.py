@@ -223,6 +223,7 @@ def extract_data(file, target_data:list =[]) -> dict:
         pass
     elif slices.ndim >= 3:
         slices = slices[0]
+    slices = slices[..., np.newaxis]
     datapoint['image'] = slices
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
@@ -280,7 +281,7 @@ def transform_data(datapoint:dict, definitions:dict) -> dict:
         print('WARNING: Indicator "image" does not exist.')
     return datapoint
 
-def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.DataFrame:
+def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=None) -> pd.DataFrame:
     """Balance data for model training.
 
     Splits the dataset into groups based on the categorical
@@ -306,6 +307,12 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
     df_balanced : Pandas DataFrame
         Balanced data set ready for feature extraction.
     """
+    assert sample_size != 0, "The sample size cannot be zero."
+    if sample_size == None:
+        sample_size = len(df)
+    else:
+        pass
+
     if columns == []:
         df_balanced = df.sample(n=sample_size, random_state=42)
     else:
