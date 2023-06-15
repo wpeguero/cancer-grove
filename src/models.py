@@ -7,6 +7,9 @@ created from the abstract model class(es) made within
 the base.py file.
 """
 import os
+import tracemalloc
+import re
+
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization, Resizing
 from tensorflow.keras.optimizers.experimental import Adagrad
 from tensorflow.keras.losses import CategoricalCrossentropy
@@ -15,9 +18,9 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model, split_dataset
 from tensorflow.keras.models import save_model
 import tensorflow as tf
-from pipeline import load_training_data
 import pandas as pd
-import tracemalloc
+
+from pipeline import load_training_data, load_image
 
 tsize = 8
 BATCH_SIZE = 2
@@ -26,45 +29,48 @@ version=1
 
 def _main():
     tracemalloc.start()
-    actual_input = (4616, 3016) #The number 4616 can by divided by 2 three times; The number 3016 can be divided by 2 three times.
-    inputs, outputs = u_net(actual_input[0], actual_input[1])
+    filepath = "data/Dataset_BUSI_with_GT/"
+    filepath_dirs = os.listdir(filepath)
+    path__malignant_images = filepath + filepath_dirs[0]
+    list__malim = os.listdir(path__malignant_images)
+    list_malim_paths = [ path__malignant_images + '/' + malim for malim in list__malim ]
+    paths__malignant_masks = [ malim_path for malim_path in list_malim_paths if 'mask' in malim_path ]
+    paths__malignant_images = [ malim_path for malim_path in list_malim_paths if 'mask' not in malim_path ]
+    path__benign_images = filepath + filepath_dirs[1]
+    list__benim = os.listdir(path__benign_images)
+    list_benim_paths = [ path__benign_images + '/' + benim for benim in list__benim ]
+    paths__benign_masks = [ benim_path for benim_path in list_benim_paths if 'mask' in benim_path ]
+    paths__benign_images = [ benim_path for benim_path in list_benim_paths if 'mask' not in benim_path ]
+    path__normal_images = filepath + filepath_dirs[2]
+    list__norim = os.listdir(path__normal_images)
+    list_norim_paths = [ path__normal_images + '/' + norim for norim in list__norim ]
+    paths__normal_masks = [ norim_path for norim_path in list_norim_paths if 'mask' in norim_path ]
+    paths__normal_images = [ norim_path for norim_path in list_norim_paths if 'mask' not in norim_path ]
+    malignant_image_set = [ {re.findall(r'\d+', mfile)[0]:load_image(mfile)} for mfile in paths__malignant_images ]
+    malignant_mask_set = [ {re.findall(r'\d+', mfile)[0]:load_image(mfile)} for mfile in paths__malignant_masks ]
+    benign_image_set = [ {re.findall(r'\d+', mfile)[0]:load_image(mfile)} for mfile in paths__benign_images ]
+    benign_mask_set = [ {re.findall(r'\d+', bfile)[0]:load_image(bfile)} for bfile in paths__benign_masks ]
+    normal_image_set = [ {re.findall(r'\d+', nfile)[0]:load_image(nfile)} for nfile in paths__normal_images ]
+    normal_mask_set = [ {re.findall(r'\d+', nfile)[0]:load_image(nfile)} for nfile in paths__normal_masks ]
+    print(normal_image_set[0])
+    snapshot = tracemalloc.take_snapshot()
+    top_stats = snapshot.statistics('lineno')
+    print("[ Top 10 ]")
+    for stat in top_stats[:10]:
+        print(stat)
+    exit()
+    inputs, outputs = u_net()
     model = Model(inputs=inputs, outputs=outputs)
     model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
     #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
-    df = pd.read_csv("data/CBIS-DDSM/fully_clean_datasetv2.csv")
-    df = df[df['image width'] == 5491]
-    df = df[df['image height'] == 2911]
-    #df = df[df['image height'] == 3104]
-    df_mask = df[df['Full Location'].str.contains(r"mask") == True]
-    df_img = df[df['Full Location'].str.contains(r"mammogram") == True]
-    print(len(df_img))
-    print(len(df_mask))
-    print(len(df))
-    print(df['image height'].value_counts())
-    input_data = load_training_data(df_img, 'Full Location', balance=False,sample_size=tsize)
-    output_data = load_training_data(df_mask, 'Full Location', balance=False,sample_size=tsize)
-    input_data = input_data[['Subject ID', 'image']]
-    output_data = output_data[['Subject ID', 'image']]
-    rdataset = pd.merge(input_data, output_data, on="Subject ID")
-    x = rdataset['image_x'].tolist()
-    y = rdataset['image_y'].tolist()
-    xshapes = [ar.shape for ar in x]
-    yshapes = [ar.shape for ar in y]
-    print(f"The total number of unique shapes in x total: {len(set(xshapes))}.\nThe shapes are {set(xshapes)}")
-    print(f"The total number of unique shapes in y total: {len(set(yshapes))}.\nThe shapes are {set(yshapes)}")
-    dataset = tf.data.Dataset.from_tensor_slices((x,y))
-    #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
+    dataset = tf.data.Dataset.from_tensor_slices()
+    dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
     cp_dir = os.path.dirname(cp_path)
     thistory = model.fit(dataset, epochs=50)
     save_model(model, './models/u_net{}'.format(version))
     hist_df = pd.DataFrame(thistory.history)
     hist_df.to_csv("data/history_unet{}.csv".format(version))
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    print("[ Top 10 ]")
-    for stat in top_stats[:10]:
-        print(stat)
 
 
 def base_image_classifier(img_height:float, img_width:float):

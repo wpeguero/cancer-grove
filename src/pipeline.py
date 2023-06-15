@@ -228,6 +228,29 @@ def extract_dicom_data(file, target_data:list =[]) -> dict:
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
 
+def load_image(filename:str) -> np.ndarray:
+    """Load the image based on the path.
+
+    ------------------------------------
+
+    Parameter
+    ---------
+    filename : string
+        string containing the relative or absolute path to
+        the image.
+
+    Returns
+    -------
+    data : numpy Array
+        Returns a 3D array containing the image of the
+        dimensions (width, height, colors).
+    """
+    img = Image.open( filename ).convert('L')
+    img.load()
+    data = np.asarray( img, dtype="float32" )
+    data = data[..., np.newaxis]
+    return data
+
 def transform_dicom_data(datapoint:dict, definitions:dict) -> dict:
     """Transform the data into an format that can be used for displaying and modeling.
 
