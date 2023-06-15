@@ -143,7 +143,7 @@ def extract_key_images(data_dir:str, metadata_filename:str, new_download = False
         df_img_paths = pd.DataFrame(img_paths_list)
         return df_img_paths
 
-def extract_data(file, target_data:list =[]) -> dict:
+def extract_dicom_data(file, target_data:list =[]) -> dict:
     """Extract the data from the .dcm files.
 
     ...
@@ -228,7 +228,7 @@ def extract_data(file, target_data:list =[]) -> dict:
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
 
-def transform_data(datapoint:dict, definitions:dict) -> dict:
+def transform_dicom_data(datapoint:dict, definitions:dict) -> dict:
     """Transform the data into an format that can be used for displaying and modeling.
 
     ...
