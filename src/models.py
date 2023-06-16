@@ -20,7 +20,7 @@ from tensorflow.keras.models import save_model
 import tensorflow as tf
 import pandas as pd
 
-from pipeline import load_training_data, load_image
+from pipeline import load_training_data, load_image, merge_dictionaries
 
 tsize = 8
 BATCH_SIZE = 2
@@ -31,12 +31,12 @@ def _main():
     tracemalloc.start()
     filepath = "data/Dataset_BUSI_with_GT/"
     filepath_dirs = os.listdir(filepath)
-    path__malignant_images = filepath + filepath_dirs[0]
+    path__malignant_images = filepath + filepath_dirs[1]
     list__malim = os.listdir(path__malignant_images)
     list_malim_paths = [ path__malignant_images + '/' + malim for malim in list__malim ]
     paths__malignant_masks = [ malim_path for malim_path in list_malim_paths if 'mask' in malim_path ]
     paths__malignant_images = [ malim_path for malim_path in list_malim_paths if 'mask' not in malim_path ]
-    path__benign_images = filepath + filepath_dirs[1]
+    path__benign_images = filepath + filepath_dirs[0]
     list__benim = os.listdir(path__benign_images)
     list_benim_paths = [ path__benign_images + '/' + benim for benim in list__benim ]
     paths__benign_masks = [ benim_path for benim_path in list_benim_paths if 'mask' in benim_path ]
@@ -46,13 +46,18 @@ def _main():
     list_norim_paths = [ path__normal_images + '/' + norim for norim in list__norim ]
     paths__normal_masks = [ norim_path for norim_path in list_norim_paths if 'mask' in norim_path ]
     paths__normal_images = [ norim_path for norim_path in list_norim_paths if 'mask' not in norim_path ]
-    malignant_image_set = [ {re.findall(r'\d+', mfile)[0]:load_image(mfile)} for mfile in paths__malignant_images ]
-    malignant_mask_set = [ {re.findall(r'\d+', mfile)[0]:load_image(mfile)} for mfile in paths__malignant_masks ]
-    benign_image_set = [ {re.findall(r'\d+', mfile)[0]:load_image(mfile)} for mfile in paths__benign_images ]
-    benign_mask_set = [ {re.findall(r'\d+', bfile)[0]:load_image(bfile)} for bfile in paths__benign_masks ]
-    normal_image_set = [ {re.findall(r'\d+', nfile)[0]:load_image(nfile)} for nfile in paths__normal_images ]
-    normal_mask_set = [ {re.findall(r'\d+', nfile)[0]:load_image(nfile)} for nfile in paths__normal_masks ]
-    print(normal_image_set[0])
+    #collect images - Images are not collected appropriately
+    malignant_image_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile) for mfile in paths__malignant_images}
+    malignant_mask_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile) for mfile in paths__malignant_masks}
+    benign_image_set =  {re.findall(r'\d+', mfile)[0]:load_image(mfile) for mfile in paths__benign_images}
+    benign_mask_set = {re.findall(r'\d+', bfile)[0]:load_image(bfile) for bfile in paths__benign_masks}
+    normal_image_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile) for nfile in paths__normal_images}
+    normal_mask_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile) for nfile in paths__normal_masks}
+    #Merge images and masks
+    malignant_dictionary = merge_dictionaries(malignant_image_set, malignant_mask_set)
+    benign_dictionary = merge_dictionaries(benign_image_set, benign_mask_set)
+    normal_dictionary = merge_dictionaries(normal_image_set, normal_mask_set)
+    normal_mask_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile) for nfile in paths__normal_masks}
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
     print("[ Top 10 ]")
