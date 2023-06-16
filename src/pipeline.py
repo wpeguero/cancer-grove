@@ -16,6 +16,7 @@ Archive.
 import os
 import pathlib
 import json
+from collections import defaultdict
 
 import numpy as np
 import dask.array as da
@@ -250,6 +251,22 @@ def load_image(filename:str) -> np.ndarray:
     data = np.asarray( img, dtype="float32" )
     data = data[..., np.newaxis]
     return data
+
+def merge_dictionaries(*dictionaries) -> dict:
+    """Merge n number of dictionaries.
+    
+    ----------------------------------
+
+    Merge any number of dictionary within the variable.
+    """
+    mdictionary = defaultdict()
+    for dictionary in dictionaries:
+        for key, value in dictionary.items():
+            if key not in mdictionary:
+                mdictionary[key] = [value]
+            else:
+                mdictionary[key].append(value)
+    return mdictionary
 
 def transform_dicom_data(datapoint:dict, definitions:dict) -> dict:
     """Transform the data into an format that can be used for displaying and modeling.
