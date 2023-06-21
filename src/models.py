@@ -18,10 +18,12 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model, split_dataset
 from tensorflow.keras.models import save_model
 import tensorflow as tf
+import numpy as np
 import pandas as pd
 
 from pipeline import load_training_data, load_image, merge_dictionaries
 
+img_size = (512, 512)
 tsize = 8
 BATCH_SIZE = 2
 validate = False
@@ -47,32 +49,50 @@ def _main():
     paths__normal_masks = [ norim_path for norim_path in list_norim_paths if 'mask' in norim_path ]
     paths__normal_images = [ norim_path for norim_path in list_norim_paths if 'mask' not in norim_path ]
     #collect images - Images are not collected appropriately
-    malignant_image_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile) for mfile in paths__malignant_images}
-    malignant_mask_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile) for mfile in paths__malignant_masks}
-    benign_image_set =  {re.findall(r'\d+', mfile)[0]:load_image(mfile) for mfile in paths__benign_images}
-    benign_mask_set = {re.findall(r'\d+', bfile)[0]:load_image(bfile) for bfile in paths__benign_masks}
-    normal_image_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile) for nfile in paths__normal_images}
-    normal_mask_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile) for nfile in paths__normal_masks}
+    malignant_image_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__malignant_images}
+    malignant_mask_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__malignant_masks}
+    benign_image_set =  {re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__benign_images}
+    benign_mask_set = {re.findall(r'\d+', bfile)[0]:load_image(bfile, img_size) for bfile in paths__benign_masks}
+    normal_image_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile, img_size) for nfile in paths__normal_images}
+    normal_mask_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile, img_size) for nfile in paths__normal_masks}
     #Merge images and masks
     malignant_dictionary = merge_dictionaries(malignant_image_set, malignant_mask_set)
+    malignants = [ {"id": str('m' + key),  "image": value[0], "mask": value[1]} for key, value in malignant_dictionary.items() ]
+    df__malignant = pd.DataFrame(malignants)
+    df__malignant['label'] = 'malignant'
+    ushapesi = list()
+    ushapesm = list()
+    for row in df__malignant.itertuples():
+        ushapesi.append(row.image.shape)
+        ushapesm.append(row.mask.shape)
+    print('\n')
+    print(set(ushapesi))
+    print('\n')
+    print(set(ushapesm))
+    print('\n')
     benign_dictionary = merge_dictionaries(benign_image_set, benign_mask_set)
+    benigns = [ {"id": str('b' + key),  "image": value[0], "mask": value[1]} for key, value in benign_dictionary.items() ]
+    df__benign = pd.DataFrame(benigns)
+    df__benign['label'] = 'benign'
     normal_dictionary = merge_dictionaries(normal_image_set, normal_mask_set)
-    normal_mask_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile) for nfile in paths__normal_masks}
+    normals = [ {"id": str('n' + key),  "image": value[0], "mask": value[1]} for key, value in normal_dictionary.items() ]
+    df__normal = pd.DataFrame(normals)
+    df__normal['label'] = 'normal'
+    inputs, outputs = u_net(598, 449)
+    model = Model(inputs=inputs, outputs=outputs)
+    model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
+    #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
+    #dataset = tf.data.Dataset.from_tensor_slices((Xm, ym))
+    #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
     print("[ Top 10 ]")
     for stat in top_stats[:10]:
         print(stat)
     exit()
-    inputs, outputs = u_net()
-    model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
-    #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
-    dataset = tf.data.Dataset.from_tensor_slices()
-    dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
     cp_dir = os.path.dirname(cp_path)
-    thistory = model.fit(dataset, epochs=50)
+    thistory = model.fit(dataset, epochs=5)
     save_model(model, './models/u_net{}'.format(version))
     hist_df = pd.DataFrame(thistory.history)
     hist_df.to_csv("data/history_unet{}.csv".format(version))

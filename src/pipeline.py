@@ -229,7 +229,7 @@ def extract_dicom_data(file, target_data:list =[]) -> dict:
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
 
-def load_image(filename:str) -> np.ndarray:
+def load_image(filename:str, size:tuple) -> np.ndarray:
     """Load the image based on the path.
 
     ------------------------------------
@@ -240,6 +240,9 @@ def load_image(filename:str) -> np.ndarray:
         string containing the relative or absolute path to
         the image.
 
+    size : tuple
+        List containing the desired width and height to
+        readjust the image.
     Returns
     -------
     data : numpy Array
@@ -247,8 +250,9 @@ def load_image(filename:str) -> np.ndarray:
         dimensions (width, height, colors).
     """
     img = Image.open( filename ).convert('L')
+    img = img.resize(size)
     img.load()
-    data = np.asarray( img, dtype="float32" )
+    data = np.asarray( img ).astype('float32')
     data = data[..., np.newaxis]
     return data
 
