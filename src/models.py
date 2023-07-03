@@ -12,7 +12,7 @@ import re
 
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization, Resizing
 from tensorflow.keras.optimizers.experimental import Adagrad
-from tensorflow.keras.losses import CategoricalCrossentropy
+from tensorflow.keras.losses import SparseCategoricalCrossentropy
 from tensorflow.keras.metrics import CategoricalAccuracy, AUC
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model, split_dataset
@@ -24,76 +24,82 @@ import pandas as pd
 from pipeline import load_training_data, load_image, merge_dictionaries
 
 img_size = (512, 512)
+mask_size = (324, 324)
 tsize = 8
 BATCH_SIZE = 2
 validate = False
-version=1
+version=2
 
 def _main():
     tracemalloc.start()
     filepath = "data/Dataset_BUSI_with_GT/"
     filepath_dirs = os.listdir(filepath)
     path__malignant_images = filepath + filepath_dirs[1]
-    list__malim = os.listdir(path__malignant_images)
-    list_malim_paths = [ path__malignant_images + '/' + malim for malim in list__malim ]
-    paths__malignant_masks = [ malim_path for malim_path in list_malim_paths if 'mask' in malim_path ]
-    paths__malignant_images = [ malim_path for malim_path in list_malim_paths if 'mask' not in malim_path ]
     path__benign_images = filepath + filepath_dirs[0]
-    list__benim = os.listdir(path__benign_images)
-    list_benim_paths = [ path__benign_images + '/' + benim for benim in list__benim ]
-    paths__benign_masks = [ benim_path for benim_path in list_benim_paths if 'mask' in benim_path ]
-    paths__benign_images = [ benim_path for benim_path in list_benim_paths if 'mask' not in benim_path ]
     path__normal_images = filepath + filepath_dirs[2]
-    list__norim = os.listdir(path__normal_images)
-    list_norim_paths = [ path__normal_images + '/' + norim for norim in list__norim ]
-    paths__normal_masks = [ norim_path for norim_path in list_norim_paths if 'mask' in norim_path ]
-    paths__normal_images = [ norim_path for norim_path in list_norim_paths if 'mask' not in norim_path ]
-    #collect images - Images are not collected appropriately
-    malignant_image_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__malignant_images}
-    malignant_mask_set = {re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__malignant_masks}
-    benign_image_set =  {re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__benign_images}
-    benign_mask_set = {re.findall(r'\d+', bfile)[0]:load_image(bfile, img_size) for bfile in paths__benign_masks}
-    normal_image_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile, img_size) for nfile in paths__normal_images}
-    normal_mask_set = {re.findall(r'\d+', nfile)[0]:load_image(nfile, img_size) for nfile in paths__normal_masks}
-    #Merge images and masks
+    malignant_images = os.listdir(path__malignant_images)
+    benign_images= os.listdir(path__benign_images)
+    normal_images= os.listdir(path__normal_images)
+    # Get relative paths
+    paths__malignant = [ path__malignant_images + '/' + image for image in malignant_images ]
+    paths__benign = [ path__benign_images + '/' + image for image in benign_images]
+    paths__normal = [ path__normal_images + '/' + image for image in normal_images]
+    # Separate paths based on mask images and non-mask images
+    paths__malignant_images = [ malignant_path for malignant_path in paths__malignant if 'mask' not in malignant_path ]
+    paths__malignant_mask = [ malignant_path for malignant_path in paths__malignant if 'mask' in malignant_path ]
+    paths__benign_images = [ benign_path for benign_path in paths__benign if 'mask' not in benign_path ]
+    paths__benign_mask = [ benign_path for benign_path in paths__benign if 'mask' in benign_path ]
+    paths__normal_images = [ normal_path for normal_path in paths__normal if 'mask' not in normal_path ]
+    paths__normal_mask = [ normal_path for normal_path in paths__normal if 'mask' in normal_path ]
+    # Collect the Images in dictionaries
+    malignant_image_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__malignant_images }
+    malignant_mask_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, mask_size) for mfile in paths__malignant_mask }
+    benign_image_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, mask_size) for mfile in paths__benign_images }
+    benign_mask_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__benign_mask }
+    normal_image_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__normal_images }
+    normal_mask_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, mask_size) for mfile in paths__normal_mask }
+    # Merge images and masks
     malignant_dictionary = merge_dictionaries(malignant_image_set, malignant_mask_set)
-    malignants = [ {"id": str('m' + key),  "image": value[0], "mask": value[1]} for key, value in malignant_dictionary.items() ]
-    df__malignant = pd.DataFrame(malignants)
-    df__malignant['label'] = 'malignant'
-    df__malignant = df__malignant.sample(n=10)
-    imgin = df__malignant['image'].to_numpy()
-    print(imgin[0])
-    print(imgin.ndim)
-    print(imgin.shape)
-    imgin = np.asarray(imgin).astype('float32')
-    imgout = df__malignant['mask'].to_numpy()
-    imgout = np.asarray(imgout).astype('float32')
     benign_dictionary = merge_dictionaries(benign_image_set, benign_mask_set)
-    benigns = [ {"id": str('b' + key),  "image": value[0], "mask": value[1]} for key, value in benign_dictionary.items() ]
-    df__benign = pd.DataFrame(benigns)
-    df__benign['label'] = 'benign'
     normal_dictionary = merge_dictionaries(normal_image_set, normal_mask_set)
-    normals = [ {"id": str('n' + key),  "image": value[0], "mask": value[1]} for key, value in normal_dictionary.items() ]
-    df__normal = pd.DataFrame(normals)
-    df__normal['label'] = 'normal'
+    # Convert the values into input and output
+    malignant_set = list()
+    for key, value in malignant_dictionary.items():
+        malignant_set.append({'id': key, 'image': value[0], 'mask': value[1]})
+    df__malignant = pd.DataFrame(malignant_set)
+    benign_set = list()
+    for key, value in benign_dictionary.items():
+        benign_set.append({'id': key, 'image': value[0], 'mask': value[1]})
+    df__benign = pd.DataFrame(benign_set)
+    normal_set = list()
+    for key, value in normal_dictionary.items():
+        normal_set.append({'id': key, 'image': value[0], 'mask': value[1]})
+    df__normal = pd.DataFrame(normal_set)
+    # Get Images and Masks
+    df__malignant = df__malignant.sample(n=10)
+    malignant_images = df__malignant['image'].tolist()
+    malignant_images = np.asarray(malignant_images).astype('float32')
+    malignant_masks = df__malignant['mask'].tolist()
+    malignant_masks = np.asarray(malignant_masks).astype('float32')
     inputs, outputs = u_net(512, 512)
     model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
-    #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
-    dataset = tf.data.Dataset.from_tensor_slices((imgin, imgout))
-    dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
+    model.compile(optimizer='Adam', loss=SparseCategoricalCrossentropy(from_logits=False), metrics=[AUC(from_logits=False)], run_eagerly=True)
+    plot_model(model, show_shapes=True, to_file='./models/u_net{}.png'.format(version))
+    dataset = tf.data.Dataset.from_tensor_slices((malignant_images, malignant_masks)).batch(1)
+    #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
     cp_dir = os.path.dirname(cp_path)
-    thistory = model.fit((df__malignant['image'].tolist(), df__malignant['mask'].tolist()), epochs=5)
+    print("\nStarting Training\n")
+    thistory = model.fit(dataset, epochs=5)
     save_model(model, './models/u_net{}'.format(version))
     hist_df = pd.DataFrame(thistory.history)
     hist_df.to_csv("data/history_unet{}.csv".format(version))
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
-    print("[ Top 10 ]")
-    for stat in top_stats[:10]:
-        print(stat)
-    exit()
+    #print("[ Top 10 ]")
+    #for stat in top_stats[:10]:
+    #    print(stat)
+    #exit()
 
 
 def base_image_classifier(img_height:float, img_width:float):
@@ -397,25 +403,25 @@ def u_net(img_height:int, img_width:int):
 
     # Seventh Convolutional Block
     decx7 = Conv2DTranspose(256, (2,2), strides=2, activation='relu')(decx6)
-    rencx3 = tf.image.resize(encx4, [decx7.shape[1], decx7.shape[2]])
+    rencx3 = tf.image.resize(encx3, [decx7.shape[1], decx7.shape[2]])
     concat = Concatenate(axis=-1)([decx7, rencx3])
     decx7 = Conv2D(256, (3,3), activation='relu')(concat)
     decx7 = Conv2D(256, (3,3), activation='relu')(decx7)
 
     # Eighth Convolutional Network
-    decx8 = Conv2DTranspose(128, (2,2), activation='relu')(decx7)
+    decx8 = Conv2DTranspose(128, (2,2), strides=2, activation='relu')(decx7)
     rencx2 = tf.image.resize(encx2, [decx8.shape[1], decx8.shape[2]])
     concat = Concatenate(axis=-1)([decx8, rencx2])
     decx8 = Conv2D(128, (3,3), activation='relu')(concat)
     decx8 = Conv2D(128, (3,3), activation='relu')(decx8)
 
     # Last convolutional Network
-    decx9 = Conv2DTranspose(64, (2,2), activation='relu')(decx8)
+    decx9 = Conv2DTranspose(64, (2,2), strides=2, activation='relu')(decx8)
     rencx1 = tf.image.resize(encx1, [decx9.shape[1], decx9.shape[2]])
     concat = Concatenate(axis=-1)([decx9, rencx1])
     decx9 = Conv2D(64, (3,3), activation='relu')(concat)
     decx9 = Conv2D(64, (3,3), activation='relu')(decx9)
-    img_output = Conv2D(2, (1,1), activation='relu')(decx9)
+    img_output = Conv2D(1, (1,1), activation='relu')(decx9)
     return img_input, img_output
 
 
