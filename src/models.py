@@ -60,16 +60,14 @@ def _main():
     malignants = [ {"id": str('m' + key),  "image": value[0], "mask": value[1]} for key, value in malignant_dictionary.items() ]
     df__malignant = pd.DataFrame(malignants)
     df__malignant['label'] = 'malignant'
-    ushapesi = list()
-    ushapesm = list()
-    for row in df__malignant.itertuples():
-        ushapesi.append(row.image.shape)
-        ushapesm.append(row.mask.shape)
-    print('\n')
-    print(set(ushapesi))
-    print('\n')
-    print(set(ushapesm))
-    print('\n')
+    df__malignant = df__malignant.sample(n=10)
+    imgin = df__malignant['image'].to_numpy()
+    print(imgin[0])
+    print(imgin.ndim)
+    print(imgin.shape)
+    imgin = np.asarray(imgin).astype('float32')
+    imgout = df__malignant['mask'].to_numpy()
+    imgout = np.asarray(imgout).astype('float32')
     benign_dictionary = merge_dictionaries(benign_image_set, benign_mask_set)
     benigns = [ {"id": str('b' + key),  "image": value[0], "mask": value[1]} for key, value in benign_dictionary.items() ]
     df__benign = pd.DataFrame(benigns)
@@ -78,24 +76,24 @@ def _main():
     normals = [ {"id": str('n' + key),  "image": value[0], "mask": value[1]} for key, value in normal_dictionary.items() ]
     df__normal = pd.DataFrame(normals)
     df__normal['label'] = 'normal'
-    inputs, outputs = u_net(598, 449)
+    inputs, outputs = u_net(512, 512)
     model = Model(inputs=inputs, outputs=outputs)
     model.compile(optimizer='Adam', loss=CategoricalCrossentropy(from_logits=False), metrics=[CategoricalAccuracy(), AUC(from_logits=False)], run_eagerly=True)
     #plot_model(model, show_shapes=True, to_file='./u_net{}.png'.format(version))
-    #dataset = tf.data.Dataset.from_tensor_slices((Xm, ym))
-    #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
+    dataset = tf.data.Dataset.from_tensor_slices((imgin, imgout))
+    dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
+    cp_path = "models/weights/u_net{}.ckpt".format(version)
+    cp_dir = os.path.dirname(cp_path)
+    thistory = model.fit((df__malignant['image'].tolist(), df__malignant['mask'].tolist()), epochs=5)
+    save_model(model, './models/u_net{}'.format(version))
+    hist_df = pd.DataFrame(thistory.history)
+    hist_df.to_csv("data/history_unet{}.csv".format(version))
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
     print("[ Top 10 ]")
     for stat in top_stats[:10]:
         print(stat)
     exit()
-    cp_path = "models/weights/u_net{}.ckpt".format(version)
-    cp_dir = os.path.dirname(cp_path)
-    thistory = model.fit(dataset, epochs=5)
-    save_model(model, './models/u_net{}'.format(version))
-    hist_df = pd.DataFrame(thistory.history)
-    hist_df.to_csv("data/history_unet{}.csv".format(version))
 
 
 def base_image_classifier(img_height:float, img_width:float):

@@ -253,7 +253,10 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
     img = img.resize(size)
     img.load()
     data = np.asarray( img ).astype('float32')
-    data = data[..., np.newaxis]
+    if data.ndim == 2:
+        data = data[..., np.newaxis]
+    else:
+        pass
     return data
 
 def merge_dictionaries(*dictionaries) -> dict:
