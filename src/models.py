@@ -52,13 +52,13 @@ def _main():
     paths__normal_images = [ normal_path for normal_path in paths__normal if 'mask' not in normal_path ]
     paths__normal_mask = [ normal_path for normal_path in paths__normal if 'mask' in normal_path ]
     # Collect the Images in dictionaries
-    malignant_image_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__malignant_images }
-    malignant_mask_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, mask_size) for mfile in paths__malignant_mask }
-    benign_image_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, mask_size) for mfile in paths__benign_images }
-    benign_mask_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__benign_mask }
-    normal_image_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, img_size) for mfile in paths__normal_images }
-    normal_mask_set = { re.findall(r'\d+', mfile)[0]:load_image(mfile, mask_size) for mfile in paths__normal_mask }
-    # Merge images and masks
+    malignant_image_set = { str("m" + re.findall(r'\d+', mfile)[0]):load_image(mfile, img_size) for mfile in paths__malignant_images }
+    malignant_mask_set = { str("m" + re.findall(r'\d+', mfile)[0]):load_image(mfile, mask_size) for mfile in paths__malignant_mask }
+    benign_image_set = { str("b" + re.findall(r'\d+', mfile)[0]):load_image(mfile, img_size) for mfile in paths__benign_images }
+    benign_mask_set = { str("b" + re.findall(r'\d+', mfile)[0]):load_image(mfile, mask_size) for mfile in paths__benign_mask }
+    normal_image_set = { str("n" + re.findall(r'\d+', mfile)[0]):load_image(mfile, img_size) for mfile in paths__normal_images }
+    normal_mask_set = { str("n" + re.findall(r'\d+', mfile)[0]):load_image(mfile, mask_size) for mfile in paths__normal_mask }
+    # Merge images and mask
     malignant_dictionary = merge_dictionaries(malignant_image_set, malignant_mask_set)
     benign_dictionary = merge_dictionaries(benign_image_set, benign_mask_set)
     normal_dictionary = merge_dictionaries(normal_image_set, normal_mask_set)
@@ -75,17 +75,19 @@ def _main():
     for key, value in normal_dictionary.items():
         normal_set.append({'id': key, 'image': value[0], 'mask': value[1]})
     df__normal = pd.DataFrame(normal_set)
+    # Allocate entire dataset into a singular DataFrame
+    df_set = pd.concat([df__normal, df__malignant, df__benign], axis=0)
     # Get Images and Masks
-    df__malignant = df__malignant.sample(n=10)
-    malignant_images = df__malignant['image'].tolist()
-    malignant_images = np.asarray(malignant_images).astype('float32')
-    malignant_masks = df__malignant['mask'].tolist()
-    malignant_masks = np.asarray(malignant_masks).astype('float32')
+    df = df_set.sample(frac=0.7, random_state=42)
+    images = df['image'].tolist()
+    images = np.asarray(images).astype('float32')
+    masks = df['mask'].tolist()
+    masks = np.asarray(masks).astype('float32')
     inputs, outputs = u_net(512, 512)
     model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='Adam', loss=SparseCategoricalCrossentropy(from_logits=False), metrics=[AUC(from_logits=False)], run_eagerly=True)
+    model.compile(optimizer='Adam', loss='binary_crossentropy', metrics=[AUC(from_logits=False), 'accuracy'], run_eagerly=True)
     plot_model(model, show_shapes=True, to_file='./models/u_net{}.png'.format(version))
-    dataset = tf.data.Dataset.from_tensor_slices((malignant_images, malignant_masks)).batch(1)
+    dataset = tf.data.Dataset.from_tensor_slices((images, masks)).batch(1)
     #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
     cp_dir = os.path.dirname(cp_path)
@@ -96,10 +98,10 @@ def _main():
     hist_df.to_csv("data/history_unet{}.csv".format(version))
     snapshot = tracemalloc.take_snapshot()
     top_stats = snapshot.statistics('lineno')
-    #print("[ Top 10 ]")
-    #for stat in top_stats[:10]:
-    #    print(stat)
-    #exit()
+    print("[ Top 10 ]")
+    for stat in top_stats[:10]:
+        print(stat)
+    exit()
 
 
 def base_image_classifier(img_height:float, img_width:float):
