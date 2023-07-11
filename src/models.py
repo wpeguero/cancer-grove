@@ -26,9 +26,9 @@ from pipeline import load_training_data, load_image, merge_dictionaries
 img_size = (512, 512)
 mask_size = (324, 324)
 tsize = 8
-BATCH_SIZE = 2
+BATCH_SIZE = 4
 validate = False
-version=2
+version=3
 
 def _main():
     tracemalloc.start()
@@ -87,12 +87,12 @@ def _main():
     model = Model(inputs=inputs, outputs=outputs)
     model.compile(optimizer='Adam', loss='binary_crossentropy', metrics=[AUC(from_logits=False), 'accuracy'], run_eagerly=True)
     plot_model(model, show_shapes=True, to_file='./models/u_net{}.png'.format(version))
-    dataset = tf.data.Dataset.from_tensor_slices((images, masks)).batch(1)
+    dataset = tf.data.Dataset.from_tensor_slices((images, masks)).batch(BATCH_SIZE)
     #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
     cp_dir = os.path.dirname(cp_path)
     print("\nStarting Training\n")
-    thistory = model.fit(dataset, epochs=5)
+    thistory = model.fit(dataset, epochs=100)
     save_model(model, './models/u_net{}'.format(version))
     hist_df = pd.DataFrame(thistory.history)
     hist_df.to_csv("data/history_unet{}.csv".format(version))
@@ -372,32 +372,39 @@ def u_net(img_height:int, img_width:int):
     img_output : TensorTlow Model
     img_input : TensorFlow Input
     """
+    rate = 0.3
     img_input = Input(shape=(img_height, img_width, 1), name='image')
     # First Convolutional Block
     encx1 = Conv2D(64, (3,3), activation='relu')(img_input)
     encx1 = Conv2D(64, (3,3), activation='relu')(encx1)
     enc1 = MaxPool2D((2,2))(encx1)
+    enc1 = Dropout(rate)(enc1)
 
     # Second Convolutional Block
     encx2 = Conv2D(128, (3,3), activation='relu')(enc1)
     encx2 = Conv2D(128, (3,3), activation='relu')(encx2)
     enc2 = MaxPool2D((2,2))(encx2)
+    enc2 = Dropout(rate)(enc2)
 
     # Third Convolutional Block
     encx3 = Conv2D(256, (3,3), activation='relu')(enc2)
     encx3 = Conv2D(256, (3,3), activation='relu')(encx3)
     enc3 = MaxPool2D((2,2))(encx3)
+    enc2 = Dropout(rate)(enc3)
 
     # Fourth Convolutional Block
     encx4 = Conv2D(512, (3,3), activation='relu')(enc3)
     encx4 = Conv2D(512, (3,3), activation='relu')(encx4)
     enc4 = MaxPool2D((2,2))(encx4)
+    enc4 = Dropout(rate)(enc4)
+
     # Fifth Convolutional Block
     encx5 = Conv2D(1024, (3,3), activation='relu')(enc4)
     encx5 = Conv2D(1024, (3,3), activation='relu')(encx5)
 
     # Sixth Convolutional Block
     decx6 = Conv2DTranspose(512, (2,2), strides=2, activation='relu')(encx5)
+    encx4 = Dropout(rate)(encx4)
     rencx4 = tf.image.resize(encx4,[decx6.shape[1], decx6.shape[2]])
     concat = Concatenate(axis=-1)([rencx4, decx6])
     decx6 = Conv2D(512, (3,3), activation='relu')(concat)
@@ -405,6 +412,7 @@ def u_net(img_height:int, img_width:int):
 
     # Seventh Convolutional Block
     decx7 = Conv2DTranspose(256, (2,2), strides=2, activation='relu')(decx6)
+    encx3 = Dropout(rate)(encx3)
     rencx3 = tf.image.resize(encx3, [decx7.shape[1], decx7.shape[2]])
     concat = Concatenate(axis=-1)([decx7, rencx3])
     decx7 = Conv2D(256, (3,3), activation='relu')(concat)
@@ -412,6 +420,7 @@ def u_net(img_height:int, img_width:int):
 
     # Eighth Convolutional Network
     decx8 = Conv2DTranspose(128, (2,2), strides=2, activation='relu')(decx7)
+    encx2 = Dropout(rate)(encx2)
     rencx2 = tf.image.resize(encx2, [decx8.shape[1], decx8.shape[2]])
     concat = Concatenate(axis=-1)([decx8, rencx2])
     decx8 = Conv2D(128, (3,3), activation='relu')(concat)
@@ -419,6 +428,7 @@ def u_net(img_height:int, img_width:int):
 
     # Last convolutional Network
     decx9 = Conv2DTranspose(64, (2,2), strides=2, activation='relu')(decx8)
+    encx1 = Dropout(rate)(encx1)
     rencx1 = tf.image.resize(encx1, [decx9.shape[1], decx9.shape[2]])
     concat = Concatenate(axis=-1)([decx9, rencx1])
     decx9 = Conv2D(64, (3,3), activation='relu')(concat)
