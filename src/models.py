@@ -10,10 +10,11 @@ import os
 import tracemalloc
 import re
 
+# Current issue: Loss is not working properly during training process
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization, Resizing
 from tensorflow.keras.optimizers.experimental import Adagrad
-from tensorflow.keras.losses import SparseCategoricalCrossentropy
-from tensorflow.keras.metrics import CategoricalAccuracy, AUC
+from tensorflow.keras.losses import SparseCategoricalCrossentropy, KLDivergence, BinaryCrossentropy
+from tensorflow.keras.metrics import BinaryAccuracy, AUC
 from tensorflow.keras.models import Model
 from tensorflow.keras.utils import plot_model, split_dataset
 from tensorflow.keras.models import save_model
@@ -82,10 +83,10 @@ def _main():
     images = df['image'].tolist()
     images = np.asarray(images).astype('float32')
     masks = df['mask'].tolist()
-    masks = np.asarray(masks).astype('float32')
+    masks = np.asarray(masks).astype('int32')
     inputs, outputs = u_net(512, 512)
     model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='Adam', loss='binary_crossentropy', metrics=[AUC(from_logits=False), 'accuracy'], run_eagerly=True)
+    model.compile(optimizer='Adam', loss=BinaryCrossentropy(), metrics=[AUC(), BinaryAccuracy()])
     plot_model(model, show_shapes=True, to_file='./models/u_net{}.png'.format(version))
     dataset = tf.data.Dataset.from_tensor_slices((images, masks)).batch(BATCH_SIZE)
     #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
@@ -372,7 +373,7 @@ def u_net(img_height:int, img_width:int):
     img_output : TensorTlow Model
     img_input : TensorFlow Input
     """
-    rate = 0.3
+    rate = 0.15
     img_input = Input(shape=(img_height, img_width, 1), name='image')
     # First Convolutional Block
     encx1 = Conv2D(64, (3,3), activation='relu')(img_input)
@@ -403,7 +404,7 @@ def u_net(img_height:int, img_width:int):
     encx5 = Conv2D(1024, (3,3), activation='relu')(encx5)
 
     # Sixth Convolutional Block
-    decx6 = Conv2DTranspose(512, (2,2), strides=2, activation='relu')(encx5)
+    decx6 = Conv2DTranspose(512, (2,2), strides=2)(encx5)
     encx4 = Dropout(rate)(encx4)
     rencx4 = tf.image.resize(encx4,[decx6.shape[1], decx6.shape[2]])
     concat = Concatenate(axis=-1)([rencx4, decx6])
@@ -411,7 +412,7 @@ def u_net(img_height:int, img_width:int):
     decx6 = Conv2D(512, (3,3), activation='relu')(decx6)
 
     # Seventh Convolutional Block
-    decx7 = Conv2DTranspose(256, (2,2), strides=2, activation='relu')(decx6)
+    decx7 = Conv2DTranspose(256, (2,2), strides=2)(decx6)
     encx3 = Dropout(rate)(encx3)
     rencx3 = tf.image.resize(encx3, [decx7.shape[1], decx7.shape[2]])
     concat = Concatenate(axis=-1)([decx7, rencx3])
@@ -419,7 +420,7 @@ def u_net(img_height:int, img_width:int):
     decx7 = Conv2D(256, (3,3), activation='relu')(decx7)
 
     # Eighth Convolutional Network
-    decx8 = Conv2DTranspose(128, (2,2), strides=2, activation='relu')(decx7)
+    decx8 = Conv2DTranspose(128, (2,2), strides=2)(decx7)
     encx2 = Dropout(rate)(encx2)
     rencx2 = tf.image.resize(encx2, [decx8.shape[1], decx8.shape[2]])
     concat = Concatenate(axis=-1)([decx8, rencx2])
@@ -427,7 +428,7 @@ def u_net(img_height:int, img_width:int):
     decx8 = Conv2D(128, (3,3), activation='relu')(decx8)
 
     # Last convolutional Network
-    decx9 = Conv2DTranspose(64, (2,2), strides=2, activation='relu')(decx8)
+    decx9 = Conv2DTranspose(64, (2,2), strides=2)(decx8)
     encx1 = Dropout(rate)(encx1)
     rencx1 = tf.image.resize(encx1, [decx9.shape[1], decx9.shape[2]])
     concat = Concatenate(axis=-1)([decx9, rencx1])

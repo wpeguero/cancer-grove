@@ -252,7 +252,11 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
     img = Image.open( filename ).convert('L')
     img = img.resize(size)
     img.load()
-    data = np.asarray( img ).astype('float32')
+    if 'mask' in filename:
+        data = np.asarray( img ).astype('int32')
+    else:
+        raw_data = np.asarray( img ).astype('float32')
+        data = (raw_data - np.min(raw_data)) / (np.max(raw_data) - np.min(raw_data))
     if data.ndim == 2:
         data = data[..., np.newaxis]
     else:
