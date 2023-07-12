@@ -16,8 +16,10 @@ Archive.
 import os
 import pathlib
 import json
+from collections import defaultdict
 
 import numpy as np
+import dask.array as da
 import pandas as pd
 from pydicom import dcmread
 from PIL import Image
@@ -31,10 +33,16 @@ def _main():
     """Test the new functions."""
     fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
     df__clean_dataset = pd.read_csv(fn__clean_dataset)
-    df__clean_dataset.fillna("Not Applicable", inplace=True)
-    features = df__clean_dataset[['left or right breast', 'breast_density', 'abnormality type', 'mass shape', 'mass margins', 'assessment', 'pathology', 'subtlety', 'breast density', 'calc type', 'calc distribution']]
-    df_sample = df__clean_dataset.sample(n=1000, random_state=42)
-    df_train = load_training_data(df_sample, pathcol="Full Location")
+    img_width = list()
+    img_height = list()
+    for _, row in df__clean_dataset.iterrows():
+        dicom_file = dcmread(row['Full Location'])
+        img = dicom_file.pixel_array
+        img_width.append(img.shape[0])
+        img_height.append(img.shape[1])
+    df__clean_dataset['image width'] = img_width
+    df__clean_dataset['image height'] = img_height
+    df__clean_dataset.to_csv('data/CBIS-DDSM/fully_clean_datasetv2.csv')
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -136,7 +144,7 @@ def extract_key_images(data_dir:str, metadata_filename:str, new_download = False
         df_img_paths = pd.DataFrame(img_paths_list)
         return df_img_paths
 
-def extract_data(file, target_data:list =[]) -> dict:
+def extract_dicom_data(file, target_data:list =[]) -> dict:
     """Extract the data from the .dcm files.
 
     ...
@@ -188,17 +196,21 @@ def extract_data(file, target_data:list =[]) -> dict:
         continues on with the classification and some
         plots may be missing from the second page.
     """
+    datapoint = dict()
     if type(file) == str:
         try:
             ds = dcmread(file)
+            datapoint['Full Location'] = file
         except (InvalidDicomError) as e:
             print(f"ERROR: The file {file} is not a DICOM file and therefore cannot be read.")
             print(e)
             exit()
     else:
         ds = file
-    datapoint = dict()
-    slices = ds.pixel_array
+
+    slices = np.asarray(ds.pixel_array).astype('float32')
+    #slices = da.asarray(ds.pixel_array).astype('float32')
+    #slices = (slices - np.min(slices)) / (np.max(slices) - np.min(slices))
     if target_data == []:
         pass
     else:
@@ -207,15 +219,67 @@ def extract_data(file, target_data:list =[]) -> dict:
                 datapoint[str(target)] = ds[target].value
             else:
                 pass
+
     if slices.ndim <= 2:
         pass
     elif slices.ndim >= 3:
         slices = slices[0]
+    slices = slices[..., np.newaxis]
     datapoint['image'] = slices
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
 
-def transform_data(datapoint:dict, definitions:dict) -> dict:
+def load_image(filename:str, size:tuple) -> np.ndarray:
+    """Load the image based on the path.
+
+    ------------------------------------
+
+    Parameter
+    ---------
+    filename : string
+        string containing the relative or absolute path to
+        the image.
+
+    size : tuple
+        List containing the desired width and height to
+        readjust the image.
+    Returns
+    -------
+    data : numpy Array
+        Returns a 3D array containing the image of the
+        dimensions (width, height, colors).
+    """
+    img = Image.open( filename ).convert('L')
+    img = img.resize(size)
+    img.load()
+    if 'mask' in filename:
+        data = np.asarray( img ).astype('int32')
+    else:
+        raw_data = np.asarray( img ).astype('float32')
+        data = (raw_data - np.min(raw_data)) / (np.max(raw_data) - np.min(raw_data))
+    if data.ndim == 2:
+        data = data[..., np.newaxis]
+    else:
+        pass
+    return data
+
+def merge_dictionaries(*dictionaries) -> dict:
+    """Merge n number of dictionaries.
+    
+    ----------------------------------
+
+    Merge any number of dictionary within the variable.
+    """
+    mdictionary = defaultdict()
+    for dictionary in dictionaries:
+        for key, value in dictionary.items():
+            if key not in mdictionary:
+                mdictionary[key] = [value]
+            else:
+                mdictionary[key].append(value)
+    return mdictionary
+
+def transform_dicom_data(datapoint:dict, definitions:dict) -> dict:
     """Transform the data into an format that can be used for displaying and modeling.
 
     ...
@@ -268,7 +332,7 @@ def transform_data(datapoint:dict, definitions:dict) -> dict:
         print('WARNING: Indicator "image" does not exist.')
     return datapoint
 
-def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.DataFrame:
+def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=None) -> pd.DataFrame:
     """Balance data for model training.
 
     Splits the dataset into groups based on the categorical
@@ -294,6 +358,12 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
     df_balanced : Pandas DataFrame
         Balanced data set ready for feature extraction.
     """
+    assert sample_size != 0, "The sample size cannot be zero."
+    if sample_size == None:
+        sample_size = len(df)
+    else:
+        pass
+
     if columns == []:
         df_balanced = df.sample(n=sample_size, random_state=42)
     else:
@@ -317,7 +387,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=1000) -> pd.Da
         df_balanced = pd.concat(sampled_groups)
     return df_balanced
 
-def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int=1000, cat_labels:list=[]):
+def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size:int=1_000, cat_labels:list=[]):
     """Load the DICOM data as a dictionary.
 
     ...
@@ -363,32 +433,22 @@ def load_training_data(filename:str, pathcol:str, validate:bool=False, ssize:int
         print("There was some error.")
         exit()
     #data = dict()
-    if bool(cat_labels) == False and validate == True:
-        df_balanced = balance_data(df, sample_size=ssize)
-        df_validate = balance_data(df.drop(df_balanced.index), sample_size=int(0.5*ssize))
-        data = list(map(extract_data,df_balanced[pathcol]))
-        data_validate = list(map(extract_data, df_validate[pathcol]))
-        df_train = pd.DataFrame(data)
-        df_val = pd.DataFrame(data_validate)
-        return df_train, df_val
-    elif bool(cat_labels) == False and validate == False:
-        df_balanced = balance_data(df, sample_size=ssize)
-        data = list(map(extract_data, df_balanced[pathcol]))
-        df_train = pd.DataFrame(data)
-        return df_train
-    elif bool(cat_labels) == True and validate == True:
-        df_balanced = balance_data(df, sample_size=ssize)
-        df_validate = balance_data(df.drop(df_balanced.index), sample_size=int(0.5*ssize))
-        data = list(map(extract_data,df_balanced[pathcol], cat_labels))
-        data_validate = list(map(extract_data, df_validate[pathcol], cat_labels))
-        df_train = pd.DataFrame(data)
-        df_val = pd.DataFrame(data_validate)
-        return df_train, df_val
-    elif bool(cat_labels) == True and validate == False:
-        df_balanced = balance_data(df, sample_size=ssize)
-        data = list(map(extract_data, df_balanced[pathcol], pathcol))
-        df_train = pd.DataFrame(data)
-        return df_train
+    if balance == True:
+        df_balanced = balance_data(df, sample_size=sample_size)
+    else:
+        df_balanced = df.sample(n=sample_size, random_state=42)
+
+    if bool(cat_labels) == False:
+        data = map(extract_data, df_balanced[pathcol])
+        df = pd.DataFrame(list(data))
+        df_full = pd.merge(df_balanced, df, on=pathcol)
+        return df_full
+    elif bool(cat_labels) == True:
+        full_labels = cat_labels * len(cat_labels) * len(df_balanced)
+        data = map(extract_data, df_balanced[pathcol], full_labels)
+        df = pd.DataFrame(list(data))
+        df_full = pd.merge(df, df_balanced, on=pathcol)
+        return df_full
     else:
         print('None of the conditions were met')
         exit()
