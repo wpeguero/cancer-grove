@@ -10,3 +10,5 @@ GroveAI is the culmination of functions used to extract the data and develop the
 ## Losses
 
 The losses library is a new experimental set of algorithms made for calculating the loss in training the machine learning models. These will include algorithms that are able to compare the actual image to the predicted image for masks.
+
+The latest resource for listing the types of losses for image segmentation is [neptune](https://neptune.ai/blog/image-segmentation)
