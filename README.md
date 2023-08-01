@@ -1,4 +1,4 @@
-# Grove AI
+# Cancer Grove
 
 This is a project for developing a machine learning algorithm using The Cancer Imaging Archive (TCIA) data sets that will
 1. Classify the image as either benign or malignant
