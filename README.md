@@ -6,3 +6,9 @@ This is a project for developing a machine learning algorithm using The Cancer I
 3. determine the stage of the tumor.
 
 GroveAI is the culmination of functions used to extract the data and develop the machine learning models. The goal is to develop algorithms that can be used for extracting, analyzing and formatting both images and metadata to feed into Artificial Neural Networks.
+
+## Losses
+
+The losses library is a new experimental set of algorithms made for calculating the loss in training the machine learning models. These will include algorithms that are able to compare the actual image to the predicted image for masks.
+
+The latest resource for listing the types of losses for image segmentation is [neptune](https://neptune.ai/blog/image-segmentation)

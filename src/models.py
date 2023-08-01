@@ -11,21 +11,21 @@ import tracemalloc
 import re
 
 # Current issue: Loss is not working properly during training process
-from tensorflow.keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization, Resizing
+from keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization, Resizing
 from tensorflow.keras.optimizers.experimental import Adagrad
-from tensorflow.keras.losses import SparseCategoricalCrossentropy, KLDivergence, BinaryCrossentropy
-from tensorflow.keras.metrics import BinaryAccuracy, AUC
-from tensorflow.keras.models import Model
-from tensorflow.keras.utils import plot_model, split_dataset
-from tensorflow.keras.models import save_model
+from keras.losses import SparseCategoricalCrossentropy, KLDivergence, BinaryCrossentropy
+from keras.metrics import BinaryAccuracy, AUC, MeanIoU
+from keras.models import Model, save_model
+from keras.utils import plot_model, split_dataset
 import tensorflow as tf
 import numpy as np
 import pandas as pd
 
 from pipeline import load_training_data, load_image, merge_dictionaries
+from losses import Dice
 
 img_size = (512, 512)
-mask_size = (324, 324)
+mask_size = (512, 512)
 tsize = 8
 BATCH_SIZE = 4
 validate = False
@@ -77,7 +77,7 @@ def _main():
         normal_set.append({'id': key, 'image': value[0], 'mask': value[1]})
     df__normal = pd.DataFrame(normal_set)
     # Allocate entire dataset into a singular DataFrame
-    df_set = pd.concat([df__normal, df__malignant, df__benign], axis=0)
+    df_set = pd.concat([df__malignant, df__benign], axis=0) #Excluded normal masks as they are all black
     # Get Images and Masks
     df = df_set.sample(frac=0.7, random_state=42)
     images = df['image'].tolist()
@@ -86,8 +86,7 @@ def _main():
     masks = np.asarray(masks).astype('int32')
     inputs, outputs = u_net(512, 512)
     model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='Adam', loss=BinaryCrossentropy(), metrics=[AUC(), BinaryAccuracy()])
-    plot_model(model, show_shapes=True, to_file='./models/u_net{}.png'.format(version))
+    model.compile(optimizer='Adam', loss=BinaryCrossentropy(), metrics=['accuracy', AUC(), BinaryAccuracy()])
     dataset = tf.data.Dataset.from_tensor_slices((images, masks)).batch(BATCH_SIZE)
     #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
     cp_path = "models/weights/u_net{}.ckpt".format(version)
@@ -348,7 +347,7 @@ def tumor_classifier(img_height:float, img_width:float):
     output = Dense(2, activation='sigmoid', name='class')(together)
     return inputs, output
 
-def u_net(img_height:int, img_width:int):
+def u_net(img_height:int, img_width:int, classes:int):
     """Create UNet Model.
 
     ---------------------
@@ -374,67 +373,68 @@ def u_net(img_height:int, img_width:int):
     img_input : TensorFlow Input
     """
     rate = 0.15
-    img_input = Input(shape=(img_height, img_width, 1), name='image')
+    img_input = Input(shape=(img_height, img_width, classes), name='image')
     # First Convolutional Block
-    encx1 = Conv2D(64, (3,3), activation='relu')(img_input)
-    encx1 = Conv2D(64, (3,3), activation='relu')(encx1)
+    encx1 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(img_input)
+    encx1 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx1)
     enc1 = MaxPool2D((2,2))(encx1)
-    enc1 = Dropout(rate)(enc1)
+    #enc1 = Dropout(rate)(enc1)
 
     # Second Convolutional Block
-    encx2 = Conv2D(128, (3,3), activation='relu')(enc1)
-    encx2 = Conv2D(128, (3,3), activation='relu')(encx2)
+    encx2 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc1)
+    encx2 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx2)
     enc2 = MaxPool2D((2,2))(encx2)
-    enc2 = Dropout(rate)(enc2)
+    #enc2 = Dropout(rate)(enc2)
 
     # Third Convolutional Block
-    encx3 = Conv2D(256, (3,3), activation='relu')(enc2)
-    encx3 = Conv2D(256, (3,3), activation='relu')(encx3)
+    encx3 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc2)
+    encx3 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx3)
     enc3 = MaxPool2D((2,2))(encx3)
-    enc2 = Dropout(rate)(enc3)
+    #enc2 = Dropout(rate)(enc3)
 
     # Fourth Convolutional Block
-    encx4 = Conv2D(512, (3,3), activation='relu')(enc3)
-    encx4 = Conv2D(512, (3,3), activation='relu')(encx4)
+    encx4 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc3)
+    encx4 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx4)
     enc4 = MaxPool2D((2,2))(encx4)
-    enc4 = Dropout(rate)(enc4)
+    #enc4 = Dropout(rate)(enc4)
 
     # Fifth Convolutional Block
-    encx5 = Conv2D(1024, (3,3), activation='relu')(enc4)
-    encx5 = Conv2D(1024, (3,3), activation='relu')(encx5)
+    encx5 = Conv2D(1024, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc4)
+    encx5 = Conv2D(1024, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx5)
 
     # Sixth Convolutional Block
-    decx6 = Conv2DTranspose(512, (2,2), strides=2)(encx5)
-    encx4 = Dropout(rate)(encx4)
+    decx6 = Conv2DTranspose(512, (2,2), padding='same', strides=2)(encx5)
+    #encx4 = Dropout(rate)(encx4)
     rencx4 = tf.image.resize(encx4,[decx6.shape[1], decx6.shape[2]])
     concat = Concatenate(axis=-1)([rencx4, decx6])
-    decx6 = Conv2D(512, (3,3), activation='relu')(concat)
-    decx6 = Conv2D(512, (3,3), activation='relu')(decx6)
+    decx6 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
+    decx6 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx6)
 
     # Seventh Convolutional Block
-    decx7 = Conv2DTranspose(256, (2,2), strides=2)(decx6)
-    encx3 = Dropout(rate)(encx3)
+    decx7 = Conv2DTranspose(256, (2,2), padding='same', strides=2)(decx6)
+    #encx3 = Dropout(rate)(encx3)
     rencx3 = tf.image.resize(encx3, [decx7.shape[1], decx7.shape[2]])
     concat = Concatenate(axis=-1)([decx7, rencx3])
-    decx7 = Conv2D(256, (3,3), activation='relu')(concat)
-    decx7 = Conv2D(256, (3,3), activation='relu')(decx7)
+    decx7 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
+    decx7 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx7)
 
     # Eighth Convolutional Network
-    decx8 = Conv2DTranspose(128, (2,2), strides=2)(decx7)
-    encx2 = Dropout(rate)(encx2)
+    decx8 = Conv2DTranspose(128, (2,2), padding='same', strides=2)(decx7)
+    #encx2 = Dropout(rate)(encx2)
     rencx2 = tf.image.resize(encx2, [decx8.shape[1], decx8.shape[2]])
     concat = Concatenate(axis=-1)([decx8, rencx2])
-    decx8 = Conv2D(128, (3,3), activation='relu')(concat)
-    decx8 = Conv2D(128, (3,3), activation='relu')(decx8)
+    decx8 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
+    decx8 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx8)
 
     # Last convolutional Network
-    decx9 = Conv2DTranspose(64, (2,2), strides=2)(decx8)
+    decx9 = Conv2DTranspose(64, (2,2), padding='same', strides=2)(decx8)
     encx1 = Dropout(rate)(encx1)
     rencx1 = tf.image.resize(encx1, [decx9.shape[1], decx9.shape[2]])
     concat = Concatenate(axis=-1)([decx9, rencx1])
-    decx9 = Conv2D(64, (3,3), activation='relu')(concat)
-    decx9 = Conv2D(64, (3,3), activation='relu')(decx9)
-    img_output = Conv2D(1, (1,1), activation='relu')(decx9)
+    decx9 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
+    decx9 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx9)
+    #decx9 = Conv2D(2, (1,1), padding='same', activation='relu', kernel_initializer='HeNormal')(decx9)
+    img_output = Conv2D(classes, (1,1), padding='same', activation='sigmoid', kernel_initializer='HeNormal')(decx9)
     return img_input, img_output
 
 
