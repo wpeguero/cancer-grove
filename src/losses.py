@@ -1,6 +1,7 @@
 """Set of algorithms for calculating the loss."""
 
 import tensorflow as tf
+from tensorflow import nn
 from keras.losses import Loss
 
 def _main():
@@ -28,16 +29,6 @@ class Dice(Loss):
         result = 1 - tf.divide(numerator, denominator)
         return result
 
-class IntersectionOverUnion(Loss):
-    """Intersection Over Union (IoU) Balanced Loss Algorithm
-
-    Aims to increase the gradient of samples with high IoU
-    and decrease the gradient of samples with low IoU. In
-    this way the localization accuracy of machine learning
-    models is increased.
-    """
-    pass
-
 class Boundary(Loss):
     """Boundary Variant Loss Algorithm
 
@@ -47,16 +38,34 @@ class Boundary(Loss):
     the problem posed by regional losses for highly
     imbalanced segmentation tasks.
     """
-    pass
+    def __init__(self, theta0:int=5, theta:int=11):
+        super(Boundary, self).__init__()
+        self.theta0 = theta0
+        self.theta = theta
 
-class Lovasz(Loss):
-    """Lovasz-Softmax Loss
+    def call(self, y_true, y_pred):
+        # Calculate the Boundary of the Image
+        y_tru = nn.softmax(y_true)
+        true_boundary = nn.max_pool2d(1 - y_tru, ksize=self.theta0, strides=1, padding=(self.theta0 - 1) // 2)
+        true_boundary -= 1 - y_tru
 
-    Performs direct optimization of the mean intersection-
-    over-union loss in neural  networks based on the convex
-    lovasz extension of sub-modular losses.
-    """
-    pass
+        y_pre = nn.softmax(y_pred)
+        predicted_boundary = nn.max_pool2d(1 - y_pre, ksize=self.theta0, strides=1, padding=(self.theta0 - 1) // 2)
+        predicted_boundary -= 1 - y_pre
+
+        # Extended Boundary
+        true_extended_boundary = nn.max_pool2d(1 - y_tru, ksize=self.theta, strides=1, padding=(self.theta - 1) // 2)
+
+        predicted_extended_boundary = nn.max_pool2d(1 - y_pre, ksize=self.theta, strides=1, padding=(self.theta - 1) // 2)
+
+        # Calculate Precision and Recall
+        precision = tf.reduce_sum(predicted_boundary * true_extended_boundary) / tf.reduce_sum(predicted_boundary)
+        recall = tf.reduce_sum(predicted_extended_boundary * true_boundary) / tf.reduce_sum(true_boundary)
+
+        # Calculate the Boundary F1 Score and loss
+        BF1 = (2 * precision * recall) / (precision + recall)
+        loss = tf.reduce_mean(1 - BF1)
+        return loss
 
 
 if __name__ == "__main__":
