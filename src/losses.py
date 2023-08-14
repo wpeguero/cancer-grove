@@ -67,6 +67,31 @@ class Boundary(Loss):
         loss = tf.reduce_mean(1 - BF1)
         return loss
 
+class Tversky(Loss):
+    """Tversky Loss Algorithm
+    """
+    def __init__(self, alpha=0.5, beta=0.5, smooth=1e-5, reduction='mean'):
+        super(Tversky, self).__init__()
+        self.alpha = alpha
+        self.beta = beta
+        self.smooth = smooth
+        self.reduction = reduction
+
+    def call(self, y_true, y_pred):
+        """Logic for calculating the loss between the true values and the predictions."""
+        if y_true.ndim > 3:
+            y_true_f = y_true.reshape(y_true.shape[0], -1)
+            y_pred_f = y_pred.reshape(y_pred.shape[0], -1)
+        else:
+            y_true_f = y_true.flatten()
+            y_pred_f = y_pred.flatten()
+
+        intersection = tf.reduce_sum(y_true_f * y_pred_f)
+        tversky = ( intersection + self.smooth ) / ( intersection + self.alpha * (tf.reduce_sum(y_pred_f * (1 - y_true_f))) + beta * (tf.reduce_sum((1 - y_pred_f) * y_true_f)) + self.smooth )
+        if reduction == 'mean':
+            tversky = tversky.mean()
+        return tversky
+
 
 if __name__ == "__main__":
     _main()
