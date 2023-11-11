@@ -18,6 +18,9 @@ from keras.metrics import BinaryAccuracy, AUC, MeanIoU
 from keras.models import Model, save_model
 from keras.utils import plot_model, split_dataset
 import tensorflow as tf
+import torch
+from torch import nn
+import torchvision.transforms.functional as TF
 import numpy as np
 import pandas as pd
 
@@ -104,7 +107,7 @@ def _main():
     exit()
 
 
-def base_image_classifier(img_height:float, img_width:float):
+class BasicImageClassifier(nn.Module):
     """Create Basic Image Classifier for model comparison improvement.
 
     ...
@@ -121,20 +124,20 @@ def base_image_classifier(img_height:float, img_width:float):
 
     Parameters
     -----------
-    img_height : float
+    img_height : Integer
         The height, in pixels, of the input images.
         This can be the maximum height of all images
         within the dataset to fit a varied amount
         that is equal or less than the declared height.
 
-    img_width : float
+    img_width : Integer
         The width, in pixels, of the input images.
         This can also be the maximum width of all
         images within the dataset to fit a varied
         amount that is equal or smaller in width
         to the declared dimension.
 
-    batch_size : int
+    batch_size : Integer
         One of the factors of the total sample size.
         This is done to better train the model without
         allowing the model to memorize the data.
@@ -156,101 +159,145 @@ def base_image_classifier(img_height:float, img_width:float):
         to create the model using TensorFlow's Model
         class.
     """
-    img_input = Input(shape=(img_height,img_width,1), name="image")
-    # Set up the images
-    x = Conv2D(96, 7, strides=(2,2), activation='relu')(img_input)
-    x = MaxPooling2D(pool_size=(3,3), strides=2)(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(256, 5, strides=(2,2), activation='relu')(x)
-    x = MaxPooling2D(pool_size=(3,3), strides=2)(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(384, 3, padding='same', activation='relu')(x)
-    #x = Dropout(0.3)(x)
-    x = Conv2D(384, 3, padding='same', activation='relu')(x)
-    x = Conv2D(256, 3, padding='same', activation='relu')(x)
-    x = MaxPooling2D(pool_size=(3,3), strides=2)(x)
-    x = Flatten()(x)
-    x = Dense(4096, activation='relu')(x)
-    x = Dropout(0.3)(x)
-    x = Dense(4096, activation='relu')(x)
-    x = Dense(1000, activation='relu')(x)
-    x = Dense(500, activation='relu')(x)
-    x = Dense(250, activation='relu')(x)
-    x = Dense(100, activation='relu')(x)
-    x = Dense(50, activation='relu')(x)
-    x = Dense(25, activation='relu')(x)
-    x = Dense(12, activation='relu')(x)
-    x = Dense(2, activation='sigmoid')(x)
-    return img_input, x
 
-def base_tumor_classifier(img_height:float, img_width:float):
-    """Create Base Tumor Classification Algorithm.
+    def __init__(self, img_height:int, img_width:int):
+        """Initialize the image classifier."""
+        super(BasicImageClassifier, self).__init__()
+        self.conv1 = nn.Conv2d(1, 96, stride=2)
+        self.mp1 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.bn1 = nn.BatchNorm2d(96)
+        self.conv2 = nn.Conv2d(96, 256, stride=2)
+        self.mp2 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.bn2 = nn.BatchNorm2d(256)
+        self.conv3 = nn.Conv2d(256, 384)
+        self.conv4 = nn.Conv2d(384, 256)
+        self.mp3 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.flatten = nn.Flatten()
+        self.linear1 = nn.Linear(4096, 4096)
+        self.dropout = nn.Dropout(0.25)
+        self.linear2 = nn.Linear(4096, 1000)
+        self.linear3 = nn.Linear(1000, 500)
+        self.linear4 = nn.Linear(500, 250)
+        self.linear5 = nn.Linear(250, 100)
+        self.linear6 = nn.Linear(100, 50)
+        self.linear7 = nn.Linear(50, 25)
+        self.linear8 = nn.Linear(25, 12)
+        self.linear9 = nn.Linear(12, 2)
 
-    ...
+    def forward(self, x):
+        """Create Forward Propragration."""
+        x = self.conv1(x)
+        x = self.mp1(x)
+        x = self.bn1(x)
+        x = self.conv2(x)
+        x = self.mp2(x)
+        x = self.bn2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.mp3(x)
+        x = self.flatten(x)
+        x = self.linear1(x)
+        x = self.dropout(x)
+        x = self.linear2(x)
+        x = self.linear3(x)
+        x = self.linear4(x)
+        x = self.linear5(x)
+        x = self.linear6(x)
+        x = self.linear7(x)
+        x = self.linear8(x)
+        x = self.linear9(x)
+        return x
 
-    A class containing a simple classifier for side-view
-    image. The models stemming from this class
-    will include rescaling for the sake and purpose
-    of normalizing the data.
 
-    Parameters
-    -----------
-    img_height : float
-        The height, in pixels, of the input images.
-        This can be the maximum height of all images
-        within the dataset to fit a varied amount
-        that is equal or less than the declared height.
-
-    img_width : float
-        The width, in pixels, of the input images.
-        This can also be the maximum width of all
-        images within the dataset to fit a varied
-        amount that is equal or smaller in width
-        to the declared dimension.
-
-    Returns
-    -------
-    inputs : {img_input, cat_input}
-        Input layers set to receive both image and
-        categorical data. The image input contains
-        images in the form of a 2D numpy array. The
-        categorical input is a 1D array containing
-        patient information. This is mainly comprised
-        of categorical data, but some nominal data.
-
-    output : Dense Layer
-        The last layer of the model developed. As
-        the model is fed through as the input of
-        the next layer, the last layer is required
-        to create the model using TensorFlow's Model
-        class.
+class DoubleConvolution(nn.Module):
     """
-    img_input = Input(shape=(img_height, img_width, 1), name='image')
-    cat_input = Input(shape=(2), name='cat')
-    inputs = [img_input, cat_input]
-    # Set up the images
-    x = Rescaling(1./255, input_shape=(img_height, img_width,1))(img_input)
-    x = Conv2D(96, 3, strides=(2,2), activation='relu')(x)
-    x = MaxPooling2D(pool_size=(3,3), strides=2)(x)
-    x = BatchNormalization()(x)
-    x = Flatten()(x)
-    x = Dropout(0.3)(x)
-    x = Dense(250, activation='relu')(x)
-    x = Dense(100, activation='relu')(x)
-    x = Dense(50, activation='relu')(x)
-    x = Dense(25, activation='relu')(x)
-    #Set up the categorical data
-    y = Dense(2, activation='relu')(cat_input)
-    y = Dense(1, activation='relu')(y)
-    # Merge both layers
+    Does the Double Convolution shown within a unit of the U-Net.
 
-    together = Concatenate(axis=1)([x,y])
-    together = Dense(13, activation='relu')(together)
-    output = Dense(2, activation='sigmoid', name='class')(together)
-    return inputs, output
+    Parameter(s)
+    ------------
+    in_channels : Integer
 
-def tumor_classifier(img_height:float, img_width:float):
-    """Complete Tumor Classification Algorithm.
+    out_channels : Integer
+    """
+
+    def __init__(self, in_channels:int, out_channels:int):
+        """Initialize the DC class."""
+        super(DoubleConvolution, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
+        self.relu1 = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, padding=1)
+        self.relu2 = nn.ReLU(inplace=True)
+
+    def forward(self, x):
+        """Forward pass of the model."""
+        x = self.conv1(x)
+        x = self.relu1(x)
+        x = self.conv2(x)
+        x = self.relu2(x)
+        return x
+
+
+class UNet(nn.Module):
+    """
+    Creates a U-Net model for image segmentation.
+
+    Unique class built to develop U-Net models. Inherits from the
+    Module class found in pytorch.
+
+    Parameter(s)
+    ------------
+    in_channels : Integer
+
+    out_channels : Integer
+    """
+
+    def __init__(self, in_channels=3, out_channels=1, features=[64, 128, 256, 512]):
+        """Initialize the U-Net."""
+        super(UNet, self).__init__()
+        self.uc = nn.ModuleList()
+        self.dc = nn.ModuleList()
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+
+        # Calculate the Down Convolutions
+        for feature in features:
+            self.dc.append(DoubleConvolution(in_channels, out_channels))
+            in_channels = feature
+
+        # Calculate the Up Convolutions
+        for feature in reversed(features):
+            self.uc.append(nn.ConvTranspose2d(2*feature, feature, kernel_size=2, stride=2))
+            self.uc.append(DoubleConvolution(2*feature, feature))
+
+        self.bottleneck = DoubleConvolution(features[-1], 2*features[-1])
+        self.final_convolution = nn.Conv2d(features[0], out_channels, kernel_size=1)
+
+    def forward(self, x):
+        """Forward pass of u-net."""
+        skip_connections = list()
+        for down in self.downs:
+            x =down(x)
+            skip_connections.append(x)
+            x = self.pool(x)
+
+        x = self.bottleneck(x)
+        skip_connections = skip_connections[::-1]
+
+        for idx in range(0, len(self.uc), 2):
+            x = self.uc[idx](x)
+            skip_connections = skip_connections[idx//2]
+
+            if x.shape != skip_connections.shape:
+                x = TF.resize(x, size=skip_connections.shape[2:])
+
+            concat_skip = torch.cat((skip_connections, x), dim=1)
+            x = self.ups[idx+1](concat_skip)
+
+        return self.final_convolution(x)
+
+
+class TumorClassifier(nn.Module):
+    """
+    Complete Tumor Classification Algorithm.
 
     ...
 
@@ -266,176 +313,18 @@ def tumor_classifier(img_height:float, img_width:float):
         This can be the maximum height of all images
         within the dataset to fit a varied amount
         that is equal or less than the declared height.
-    
+
     img_width : float
         The width, in pixels, of the input images.
         This can also be the maximum width of all
         images within the dataset to fit a varied
         amount that is equal or smaller in width
         to the declared dimension.
-    
-    batch_size : int *
-        One of the factors of the total sample size.
-        This is done to better train the model without
-        allowing the model to memorize the data.
-    
-    Returns
-    -------
-    inputs : {img_input, cat_input}
-        Input layers set to receive both image and
-        categorical data. The image input contains
-        images in the form of a 2D numpy array. The
-        categorical input is a 1D array containing
-        patient information. This is mainly comprised
-        of categorical data, but some nominal data.
-    
-    output : Dense Layer
-        The last layer of the model developed. As
-        the model is fed through as the input of
-        the next layer, the last layer is required
-        to create the model using TensorFlow's Model
-        class.
-    
-    ---
-    
-    *Deprecated
     """
-    img_input = Input(shape=(img_height, img_width, 1), name='image')
-    cat_input = Input(shape=(2), name='cat')
-    inputs = [img_input, cat_input]
-    # Set up the images
-    x = Rescaling(1./255, input_shape=(img_height, img_width,1))(img_input)
-    x = Conv2D(64*5, 3, padding='same', strides=(2,2), activation='relu')(x)
-    x = Conv2D(64*5, 3, padding='same', strides=(2,2), activation='relu')(x)
-    x = MaxPooling2D(pool_size=(2,2), strides=2)(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(128*5, 5,padding='same',  strides=(2,2), activation='relu')(x)
-    x = Conv2D(128*5, 5,padding='same',  strides=(2,2), activation='relu')(x)
-    x = MaxPooling2D(pool_size=(2,2), strides=2)(x)
-    x = Conv2D(256*5, 5, padding='same', activation='relu')(x)
-    x = Conv2D(256*5, 5, padding='same', activation='relu')(x)
-    x = Conv2D(256*5, 5, padding='same', activation='relu')(x)
-    x = MaxPooling2D(pool_size=(2,2), strides=2)(x)
-    x = BatchNormalization()(x)
-    x = Conv2D(512*5, 5, padding='same', activation='relu')(x)
-    x = Conv2D(512*5, 5, padding='same', activation='relu')(x)
-    x = Conv2D(512*5, 5, padding='same', activation='relu')(x)
-    x = MaxPooling2D(pool_size=(2,2), strides=2)(x)
-    x = Conv2D(512*5, 5, padding='same', activation='relu')(x)
-    x = Conv2D(512*5, 5, padding='same', activation='relu')(x)
-    x = Conv2D(512*5, 5, padding='same', activation='relu')(x)
-    x = BatchNormalization()(x)
-    x = MaxPooling2D(pool_size=(2,2), strides=2)(x)
-    x = Flatten()(x)
-    x = Dense(4096, activation='relu')(x)
-    x = Dense(4096, activation='relu')(x)
-    x = Dense(1000, activation='relu')(x)
-    x = Dropout(0.3)(x)
-    x = Dense(500, activation='relu')(x)
-    x = Dense(250, activation='relu')(x)
-    x = Dense(100, activation='relu')(x)
-    x = Dense(50, activation='relu')(x)
-    #x = Dropout(0.5)(x)
-    x = Dense(25, activation='relu')(x)
-    #Set up the categorical data
-    y = Dense(2, activation='relu')(cat_input)
-    y = Dense(1, activation='relu')(y)
-    # Merge both layers
 
-    together = Concatenate(axis=1)([x,y])
-    together = Dense(13, activation='relu')(together)
-    output = Dense(2, activation='sigmoid', name='class')(together)
-    return inputs, output
-
-def u_net(img_height:int, img_width:int, classes:int):
-    """Create UNet Model.
-
-    ---------------------
-
-    This function is used to develop a U Neural Network.
-    This model works by using Convolutional Neural Networks
-    and skipping to the end of the model in a U pattern to
-    prevent data loss and retain certain information about
-    the image.
-
-    Parameter(s)
-    ------------
-
-    img_height : integer
-        The height of the image.
-
-    img_width : integer
-        The width of the image.
-
-    Returns
-    -------
-    img_output : TensorTlow Model
-    img_input : TensorFlow Input
-    """
-    rate = 0.15
-    img_input = Input(shape=(img_height, img_width, classes), name='image')
-    # First Convolutional Block
-    encx1 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(img_input)
-    encx1 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx1)
-    enc1 = MaxPool2D((2,2))(encx1)
-    #enc1 = Dropout(rate)(enc1)
-
-    # Second Convolutional Block
-    encx2 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc1)
-    encx2 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx2)
-    enc2 = MaxPool2D((2,2))(encx2)
-    #enc2 = Dropout(rate)(enc2)
-
-    # Third Convolutional Block
-    encx3 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc2)
-    encx3 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx3)
-    enc3 = MaxPool2D((2,2))(encx3)
-    #enc2 = Dropout(rate)(enc3)
-
-    # Fourth Convolutional Block
-    encx4 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc3)
-    encx4 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx4)
-    enc4 = MaxPool2D((2,2))(encx4)
-    #enc4 = Dropout(rate)(enc4)
-
-    # Fifth Convolutional Block
-    encx5 = Conv2D(1024, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(enc4)
-    encx5 = Conv2D(1024, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(encx5)
-
-    # Sixth Convolutional Block
-    decx6 = Conv2DTranspose(512, (2,2), padding='same', strides=2)(encx5)
-    #encx4 = Dropout(rate)(encx4)
-    rencx4 = tf.image.resize(encx4,[decx6.shape[1], decx6.shape[2]])
-    concat = Concatenate(axis=-1)([rencx4, decx6])
-    decx6 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
-    decx6 = Conv2D(512, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx6)
-
-    # Seventh Convolutional Block
-    decx7 = Conv2DTranspose(256, (2,2), padding='same', strides=2)(decx6)
-    #encx3 = Dropout(rate)(encx3)
-    rencx3 = tf.image.resize(encx3, [decx7.shape[1], decx7.shape[2]])
-    concat = Concatenate(axis=-1)([decx7, rencx3])
-    decx7 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
-    decx7 = Conv2D(256, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx7)
-
-    # Eighth Convolutional Network
-    decx8 = Conv2DTranspose(128, (2,2), padding='same', strides=2)(decx7)
-    #encx2 = Dropout(rate)(encx2)
-    rencx2 = tf.image.resize(encx2, [decx8.shape[1], decx8.shape[2]])
-    concat = Concatenate(axis=-1)([decx8, rencx2])
-    decx8 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
-    decx8 = Conv2D(128, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx8)
-
-    # Last convolutional Network
-    decx9 = Conv2DTranspose(64, (2,2), padding='same', strides=2)(decx8)
-    encx1 = Dropout(rate)(encx1)
-    rencx1 = tf.image.resize(encx1, [decx9.shape[1], decx9.shape[2]])
-    concat = Concatenate(axis=-1)([decx9, rencx1])
-    decx9 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(concat)
-    decx9 = Conv2D(64, (3,3), padding='same', activation='relu', kernel_initializer='HeNormal')(decx9)
-    #decx9 = Conv2D(2, (1,1), padding='same', activation='relu', kernel_initializer='HeNormal')(decx9)
-    img_output = Conv2D(classes, (1,1), padding='same', activation='sigmoid', kernel_initializer='HeNormal')(decx9)
-    return img_input, img_output
+    def __init__(self, img_height, img_width, num_cats):
+        """Inialize the Model."""
+        self.conv1 = nn.Conv2d()
 
 
 if __name__ == "__main__":
