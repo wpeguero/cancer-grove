@@ -24,25 +24,15 @@ import pandas as pd
 from pydicom import dcmread
 from PIL import Image
 from pydicom.errors import InvalidDicomError
-from keras.models import load_model
-from tensorflow.nn import softmax
 
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
-    df__clean_dataset = pd.read_csv(fn__clean_dataset)
-    img_width = list()
-    img_height = list()
-    for _, row in df__clean_dataset.iterrows():
-        dicom_file = dcmread(row['Full Location'])
-        img = dicom_file.pixel_array
-        img_width.append(img.shape[0])
-        img_height.append(img.shape[1])
-    df__clean_dataset['image width'] = img_width
-    df__clean_dataset['image height'] = img_height
-    df__clean_dataset.to_csv('data/CBIS-DDSM/fully_clean_datasetv2.csv')
+    fn__test_img= "data/Dataset_BUSI_with_GT/benign/benign (1).png"
+    img = load_image(fn__test_img, (512,512))
+    print(img.ndim)
+    print(img.shape)
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -258,7 +248,7 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
         raw_data = np.asarray( img ).astype('float32')
         data = (raw_data - np.min(raw_data)) / (np.max(raw_data) - np.min(raw_data))
     if data.ndim == 2:
-        data = data[..., np.newaxis]
+        data = data[np.newaxis, ...]
     else:
         pass
     return data
@@ -484,55 +474,6 @@ def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
         dfp_list.append(datapoint)
     tdata = pd.DataFrame(dfp_list)
     return tdata
-
-def predict(data:pd.DataFrame, model_name, cat_inputs:list=[]) -> pd.DataFrame:
-    """Make predictions based on data provided.
-
-    Extracts the image data using the path column provided
-    by the DataFrame argument and uses the model provided
-    to make the predictions. The algorithm also extracts
-    the necessary categorical data to make the predictions.
-
-    Parameter(s)
-    ------------
-    data : Pandas DataFrame
-        file or object containing the data necessary to
-        make predictions. This must contain the path column
-        and the categorical columns related to the model.
-
-    model_name : str or TensorFlow Model
-        either the path to a TensorFlow model or the model
-        itself. Used to make predictions on the data.
-
-    Returns
-    -------
-    data : Pandas DataFrame
-        predictions together with all of the original
-        information.
-    """
-    if type(model_name) ==str:
-        model = load_model(model_name)
-    else:
-        model = model_name
-    fdata = {'image': np.asarray(data['image'].to_list()), 'cat': np.asarray(data[['age', 'side']])}
-    predictions = model.predict(fdata, batch_size=5)
-    data['sex'] = data['sex'].map(sex)
-    data['modality'] = data['modality'].map(modalities)
-    data['side'] = data['side'].map(sides)
-    if len(predictions) == 1:
-        predictions = predictions[0]
-        data['score'] = [softmax(predictions).numpy().tolist()]
-        data['pred_class'] = class_names[np.argmax(data['score'])]
-    elif len(predictions) >= 2:
-        pred_data = list()
-        for pred in predictions:
-            score = softmax(pred)
-            pclass = class_names[np.argmax(score)]
-            pred_data.append({'score':score.numpy(), 'pred_class':pclass})
-        _df = pd.DataFrame(pred_data)
-        data = data.join(_df)
-    data = data.drop(columns=['image'])
-    return data
 
 def rescale_image(img:np.ndarray) -> np.ndarray:
     """Rescale the image to a more manageable size.
