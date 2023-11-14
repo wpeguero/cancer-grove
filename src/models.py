@@ -9,15 +9,9 @@ the base.py file.
 import os
 import tracemalloc
 import re
+from math import floor
 
 # Current issue: Loss is not working properly during training process
-from keras.layers import Conv2D, Conv2DTranspose, Dense, Rescaling, Flatten, MaxPool2D, Dropout, Input, Concatenate, BatchNormalization, Resizing
-from tensorflow.keras.optimizers.experimental import Adagrad
-from keras.losses import SparseCategoricalCrossentropy, KLDivergence, BinaryCrossentropy
-from keras.metrics import BinaryAccuracy, AUC, MeanIoU
-from keras.models import Model, save_model
-from keras.utils import plot_model, split_dataset
-import tensorflow as tf
 import torch
 from torch import nn
 import torchvision.transforms.functional as TF
@@ -35,76 +29,11 @@ validate = False
 version=3
 
 def _main():
-    tracemalloc.start()
-    filepath = "data/Dataset_BUSI_with_GT/"
-    filepath_dirs = os.listdir(filepath)
-    path__malignant_images = filepath + filepath_dirs[1]
-    path__benign_images = filepath + filepath_dirs[0]
-    path__normal_images = filepath + filepath_dirs[2]
-    malignant_images = os.listdir(path__malignant_images)
-    benign_images= os.listdir(path__benign_images)
-    normal_images= os.listdir(path__normal_images)
-    # Get relative paths
-    paths__malignant = [ path__malignant_images + '/' + image for image in malignant_images ]
-    paths__benign = [ path__benign_images + '/' + image for image in benign_images]
-    paths__normal = [ path__normal_images + '/' + image for image in normal_images]
-    # Separate paths based on mask images and non-mask images
-    paths__malignant_images = [ malignant_path for malignant_path in paths__malignant if 'mask' not in malignant_path ]
-    paths__malignant_mask = [ malignant_path for malignant_path in paths__malignant if 'mask' in malignant_path ]
-    paths__benign_images = [ benign_path for benign_path in paths__benign if 'mask' not in benign_path ]
-    paths__benign_mask = [ benign_path for benign_path in paths__benign if 'mask' in benign_path ]
-    paths__normal_images = [ normal_path for normal_path in paths__normal if 'mask' not in normal_path ]
-    paths__normal_mask = [ normal_path for normal_path in paths__normal if 'mask' in normal_path ]
-    # Collect the Images in dictionaries
-    malignant_image_set = { str("m" + re.findall(r'\d+', mfile)[0]):load_image(mfile, img_size) for mfile in paths__malignant_images }
-    malignant_mask_set = { str("m" + re.findall(r'\d+', mfile)[0]):load_image(mfile, mask_size) for mfile in paths__malignant_mask }
-    benign_image_set = { str("b" + re.findall(r'\d+', mfile)[0]):load_image(mfile, img_size) for mfile in paths__benign_images }
-    benign_mask_set = { str("b" + re.findall(r'\d+', mfile)[0]):load_image(mfile, mask_size) for mfile in paths__benign_mask }
-    normal_image_set = { str("n" + re.findall(r'\d+', mfile)[0]):load_image(mfile, img_size) for mfile in paths__normal_images }
-    normal_mask_set = { str("n" + re.findall(r'\d+', mfile)[0]):load_image(mfile, mask_size) for mfile in paths__normal_mask }
-    # Merge images and mask
-    malignant_dictionary = merge_dictionaries(malignant_image_set, malignant_mask_set)
-    benign_dictionary = merge_dictionaries(benign_image_set, benign_mask_set)
-    normal_dictionary = merge_dictionaries(normal_image_set, normal_mask_set)
-    # Convert the values into input and output
-    malignant_set = list()
-    for key, value in malignant_dictionary.items():
-        malignant_set.append({'id': key, 'image': value[0], 'mask': value[1]})
-    df__malignant = pd.DataFrame(malignant_set)
-    benign_set = list()
-    for key, value in benign_dictionary.items():
-        benign_set.append({'id': key, 'image': value[0], 'mask': value[1]})
-    df__benign = pd.DataFrame(benign_set)
-    normal_set = list()
-    for key, value in normal_dictionary.items():
-        normal_set.append({'id': key, 'image': value[0], 'mask': value[1]})
-    df__normal = pd.DataFrame(normal_set)
-    # Allocate entire dataset into a singular DataFrame
-    df_set = pd.concat([df__malignant, df__benign], axis=0) #Excluded normal masks as they are all black
-    # Get Images and Masks
-    df = df_set.sample(frac=0.7, random_state=42)
-    images = df['image'].tolist()
-    images = np.asarray(images).astype('float32')
-    masks = df['mask'].tolist()
-    masks = np.asarray(masks).astype('int32')
-    inputs, outputs = u_net(512, 512)
-    model = Model(inputs=inputs, outputs=outputs)
-    model.compile(optimizer='Adam', loss=BinaryCrossentropy(), metrics=['accuracy', AUC(), BinaryAccuracy()])
-    dataset = tf.data.Dataset.from_tensor_slices((images, masks)).batch(BATCH_SIZE)
-    #dataset = dataset.shuffle(buffer_size=10).prefetch(tf.data.AUTOTUNE)
-    cp_path = "models/weights/u_net{}.ckpt".format(version)
-    cp_dir = os.path.dirname(cp_path)
-    print("\nStarting Training\n")
-    thistory = model.fit(dataset, epochs=100)
-    save_model(model, './models/u_net{}'.format(version))
-    hist_df = pd.DataFrame(thistory.history)
-    hist_df.to_csv("data/history_unet{}.csv".format(version))
-    snapshot = tracemalloc.take_snapshot()
-    top_stats = snapshot.statistics('lineno')
-    print("[ Top 10 ]")
-    for stat in top_stats[:10]:
-        print(stat)
-    exit()
+    model = TumorClassifier(4)
+    img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", img_size)
+    img = torch.from_numpy(img)
+    #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
+    model(img.unsqueeze(0), torch.Tensor([1, 2, 3, 4]).unsqueeze(0))
 
 
 class BasicImageClassifier(nn.Module):
@@ -160,7 +89,7 @@ class BasicImageClassifier(nn.Module):
         class.
     """
 
-    def __init__(self, img_height:int, img_width:int):
+    def __init__(self):
         """Initialize the image classifier."""
         super(BasicImageClassifier, self).__init__()
         self.conv1 = nn.Conv2d(1, 96, stride=2)
@@ -297,34 +226,73 @@ class UNet(nn.Module):
 
 class TumorClassifier(nn.Module):
     """
-    Complete Tumor Classification Algorithm.
+    Tumor Classifier Module that uses both categorical data and image data.
 
     ...
 
-    A class containing a simple classifier for any
-    sort of image. The models stemming from this class
-    will include rescaling and data augmentation
-    for the sake and purpose of normalizing the data.
+    The machine learning model uses a combination of an image or
+    scan in conjunction with categorical data contained within
+    the dicom file.
 
-    Parameters
-    -----------
-    img_height : float
-        The height, in pixels, of the input images.
-        This can be the maximum height of all images
-        within the dataset to fit a varied amount
-        that is equal or less than the declared height.
-
-    img_width : float
-        The width, in pixels, of the input images.
-        This can also be the maximum width of all
-        images within the dataset to fit a varied
-        amount that is equal or smaller in width
-        to the declared dimension.
     """
 
-    def __init__(self, img_height, img_width, num_cats):
-        """Inialize the Model."""
-        self.conv1 = nn.Conv2d()
+    def __init__(self, cat_input_length:int):
+        """Initialize the Module."""
+        super(TumorClassifier, self).__init__()
+        self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=2)
+        self.mp1 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.bn1 = nn.BatchNorm2d(64)
+        self.conv2 = nn.Conv2d(64, 256, kernel_size=3, stride=2)
+        self.mp2 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.bn2 = nn.BatchNorm2d(256)
+        self.conv3 = nn.Conv2d(256, 384, kernel_size=3)
+        self.conv4 = nn.Conv2d(384, 256, kernel_size=3)
+        self.mp3 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.flatten = nn.Flatten()
+        self.linear1 = nn.Linear(43264, 4096)
+        self.dropout = nn.Dropout(0.25)
+        self.linear2 = nn.Linear(4096, 1000)
+        self.linear3 = nn.Linear(1000, 500)
+        self.linear4 = nn.Linear(500, 250)
+        self.linear5 = nn.Linear(250, 100)
+        self.linear6 = nn.Linear(100, 50)
+        self.linear7 = nn.Linear(50, 25)
+        self.linear8 = nn.Linear(25, 12)
+        self.catlinears = nn.ModuleList()
+        for i in range(1, floor(np.log2(cat_input_length)) + 1):
+            if i - 1 == 0:
+                continue
+            self.catlinears.append(nn.Linear(int(cat_input_length), int(cat_input_length / 2)))
+            cat_input_length = cat_input_length / 2
+        self.outlinear = nn.Linear(int(cat_input_length + 12), 2)
+
+    def forward(self, input1, input2):
+        """Propagate throughout the machine learning model."""
+        x1 = self.conv1(input1)
+        x1 = self.mp1(x1)
+        x1 = self.bn1(x1)
+        x1 = self.conv2(x1)
+        x1 = self.mp2(x1)
+        x1 = self.bn2(x1)
+        x1 = self.conv3(x1)
+        x1 = self.conv4(x1)
+        x1 = self.mp3(x1)
+        x1 = self.flatten(x1)
+        x1 = self.linear1(x1)
+        x1 = self.dropout(x1)
+        x1 = self.linear2(x1)
+        x1 = self.linear3(x1)
+        x1 = self.linear4(x1)
+        x1 = self.linear5(x1)
+        x1 = self.linear6(x1)
+        x1 = self.linear7(x1)
+        x1 = self.linear8(x1)
+        for linear in self.catlinears:
+            input2 = linear(input2)
+        concat = torch.cat((x1, input2), dim=1)
+        output = self.outlinear(concat)
+        return output
+
 
 
 if __name__ == "__main__":
