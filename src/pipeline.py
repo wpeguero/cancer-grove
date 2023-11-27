@@ -34,8 +34,8 @@ def _main():
     """Test the new functions."""
     fn__test_img= "data/Dataset_BUSI_with_GT/benign/benign (1).png"
     img = load_image(fn__test_img, (512,512))
-    print(img.ndim)
-    print(img.shape)
+    img_set = CancerImageSet(root='data/Dataset_BUSI_with_GT/')
+    print(len(img_set))
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -564,19 +564,23 @@ class CancerImageSet(data.Dataset):
     def __init__(self, root='train/', image_loader=None, transform=None):
         """Initialize the Dataset Subclass."""
         self.root = root
-        self.dict__files = {str(dirname):str(filename) for _, dirname, filename in os.walk(self.root)}
-        self.folders = dict__files.keys()
-        self.files = dict__files.items()
+        self.folders = os.listdir(root)
+        self.files = list()
+        self.dict__files = dict()
+        for folder in self.folders:
+            fold = os.path.join(self.root, folder)
+            self.dict__files[folder] = os.listdir(fold)
+            self.files.extend(os.listdir(fold))
         self.loader = image_loader
         self.transform = transform
 
-    def __len__(self, index):
+    def __len__(self):
         """Get the Length of the items within the dataset."""
-        return sum([len(self.folders)])
+        return sum([len(self.files)])
 
     def __getitem__(self, index):
         """Get item from class."""
-        images = [self.loader(os.path.join(root, folder)) for folder in self.folders]
+        images = [self.loader(os.path.join(self.root, folder)) for folder in self.folders]
         if self.transform is not None:
             images = [self.transform(img) for img in images]
 
