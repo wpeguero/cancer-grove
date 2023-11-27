@@ -24,6 +24,9 @@ import pandas as pd
 from pydicom import dcmread
 from PIL import Image
 from pydicom.errors import InvalidDicomError
+from torch.utils import data
+from torchvision import datasets, transforms
+
 
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
@@ -543,6 +546,39 @@ def calculate_confusion_matrix(fin_predictions:pd.DataFrame):
     metrics['Recall'] = tp / (tp + fn) # Ability of model to correctly identify positives
     metrics['F1 Score'] = (2 * metrics['Precision'] * metrics['Recall']) / (metrics['Precision'] + metrics['Recall'])
     return ct, metrics
+
+
+class CancerImageSet(data.Dataset):
+    """
+    Dataset extracted from paths to cancer images.
+
+    ...
+
+    Dataset subclass that will grab the path to a folder
+    containing the entire set of images and if images are
+    organized based on folders, then it will attach a label.
+    The label will be numerical and represent the origin of the
+    folder.
+    """
+
+    def __init__(self, root='train/', image_loader=None, transform=None):
+        """Initialize the Dataset Subclass."""
+        self.root = root
+        self.dict__files = {str(dirname):str(filename) for _, dirname, filename in os.walk(self.root)}
+        self.folders = dict__files.keys()
+        self.files = dict__files.items()
+        self.loader = image_loader
+        self.transform = transform
+
+    def __len__(self, index):
+        """Get the Length of the items within the dataset."""
+        return sum([len(self.folders)])
+
+    def __getitem__(self, index):
+        """Get item from class."""
+        images = [self.loader(os.path.join(root, folder)) for folder in self.folders]
+        if self.transform is not None:
+            images = [self.transform(img) for img in images]
 
 
 if __name__ == "__main__":
