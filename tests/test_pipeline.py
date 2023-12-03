@@ -3,24 +3,16 @@ from src.pipeline import *
 from numpy import ndarray
 import pytest
 import pandas as pd
+from torch.utils import data
 
 fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
 file = "data/CBIS-DDSM/CBIS-DDSM/Calc-Test_P_00038_LEFT_CC/08-29-2017-DDSM-NA-96009/1.000000-full mammogram images-63992/1-1.dcm"
+fn__image_set = "data/Dataset_BUSI_with_GT/"
 
-def test_extract_data_output():
-    """Test the extraction process of the data."""
-    datapoint = extract_data(file)
-    assert type(datapoint) == dict
+def test_image_dataset_class():
+    img_set = ImageSet(root=fn__image_set)
+    img_loader = data.DataLoader(img_set, batch_size=3)
 
-#def test_transform_data(): # This will require rework.
-#    """Test whether the extracted data has been successfully transformed."""
-#    datapoint = extract_data(file)
-#    datapoint = transform_data(datapoint)
-#    for key, value in datapoint.items():
-#        if (key == 'Subject ID') or (key == 'image'):
-#            pass
-#        else:
-#            assert type(value) == int
 
 def test_rescale_image():
     """Test whether images are rescaled appropriately."""

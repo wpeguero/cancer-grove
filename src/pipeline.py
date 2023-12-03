@@ -24,18 +24,27 @@ import pandas as pd
 from pydicom import dcmread
 from PIL import Image
 from pydicom.errors import InvalidDicomError
+import torch
+from torch import optim, nn
 from torch.utils import data
 from torchvision import datasets, transforms
 
-
+from models import BasicImageClassifier
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
     fn__test_img= "data/Dataset_BUSI_with_GT/benign/benign (1).png"
-    img = load_image(fn__test_img, (512,512))
-    img_set = CancerImageSet(root='data/Dataset_BUSI_with_GT/')
-    print(len(img_set))
+    model = BasicImageClassifier()
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    trainer = TrainModel(model, optimizer, loss_fn)
+    #Gather the data.
+    tforms = transforms.Compose([transforms.Resize((512, 512)), transforms.ToTensor()])
+    fn__train_dataset = "data/Chest_CT_Scans/train/"
+    train_dataset = datasets.ImageFolder(fn__train_dataset, transform=tforms)
+    trainloader = data.DataLoader(train_dataset, batch_size=8)
+    trainer.train(trainloader, 10)
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -548,7 +557,7 @@ def calculate_confusion_matrix(fin_predictions:pd.DataFrame):
     return ct, metrics
 
 
-class CancerImageSet(data.Dataset):
+class ImageSet(data.Dataset):
     """
     Dataset extracted from paths to cancer images.
 
@@ -559,6 +568,7 @@ class CancerImageSet(data.Dataset):
     organized based on folders, then it will attach a label.
     The label will be numerical and represent the origin of the
     folder.
+    *Alternatively, one can use the torchvision.data.ImageFolder class for the same reason.
     """
 
     def __init__(self, root='train/', image_loader=None, transform=None):
@@ -583,6 +593,48 @@ class CancerImageSet(data.Dataset):
         images = [self.loader(os.path.join(self.root, folder)) for folder in self.folders]
         if self.transform is not None:
             images = [self.transform(img) for img in images]
+        return images
+
+
+class TrainModel:
+    """
+    Class for training pytorch machine learning models.
+
+    This class functions as an environment for training the
+    pytorch models.
+    """
+
+    def __init__(self, model, optimizer, loss):
+        """Initialize the class."""
+        self.model = model
+        self.opt = optimizer
+        self.criterion = loss
+
+    def get_model(self):
+        """Get the Model post training."""
+        return self.model
+
+    def train(self, trainloader:data.DataLoader, epochs:int, gpu=False):
+        """Train the machine learning model."""
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("The model wil lbe running on ", device, "device")
+        self.model.to(device)
+        for epoch in range(epochs):
+            running_loss = 0.0
+            for i, (inputs, labels) in enumerate(trainloader, 0):
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                self.opt.zero_grad()
+
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.opt.step()
+
+                running_loss += loss.item()
+                if i % 10 == 9:
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 10:.3f}')
+                    running_loss = 0.0
 
 
 if __name__ == "__main__":

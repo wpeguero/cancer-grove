@@ -18,7 +18,6 @@ import torchvision.transforms.functional as TF
 import numpy as np
 import pandas as pd
 
-from pipeline import load_training_data, load_image, merge_dictionaries
 from losses import Dice
 
 img_size = (512, 512)
@@ -50,60 +49,23 @@ class BasicImageClassifier(nn.Module):
     accuracy between a model with rescaling and
     data augmentation is against a model without
     any of these.
-
-    Parameters
-    -----------
-    img_height : Integer
-        The height, in pixels, of the input images.
-        This can be the maximum height of all images
-        within the dataset to fit a varied amount
-        that is equal or less than the declared height.
-
-    img_width : Integer
-        The width, in pixels, of the input images.
-        This can also be the maximum width of all
-        images within the dataset to fit a varied
-        amount that is equal or smaller in width
-        to the declared dimension.
-
-    batch_size : Integer
-        One of the factors of the total sample size.
-        This is done to better train the model without
-        allowing the model to memorize the data.
-
-    Returns
-    -------
-    inputs : {img_input, cat_input}
-        Input layers set to receive both image and
-        categorical data. The image input contains
-        images in the form of a 2D numpy array. The
-        categorical input is a 1D array containing
-        patient information. This is mainly comprised
-        of categorical data, but some nominal data.
-
-    x : Dense Layer
-        The last layer of the model developed. As
-        the model is fed through as the input of
-        the next layer, the last layer is required
-        to create the model using TensorFlow's Model
-        class.
     """
 
     def __init__(self):
         """Initialize the image classifier."""
         super(BasicImageClassifier, self).__init__()
-        self.conv1 = nn.Conv2d(1, 96, stride=2)
+        self.conv1 = nn.Conv2d(3, 96, kernel_size=(3, 3), stride=2)
         self.mp1 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
         self.bn1 = nn.BatchNorm2d(96)
-        self.conv2 = nn.Conv2d(96, 256, stride=2)
+        self.conv2 = nn.Conv2d(96, 256, kernel_size=(3,3), stride=2)
         self.mp2 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
         self.bn2 = nn.BatchNorm2d(256)
-        self.conv3 = nn.Conv2d(256, 384)
-        self.conv4 = nn.Conv2d(384, 256)
+        self.conv3 = nn.Conv2d(256, 384, kernel_size=(3, 3), stride=2)
+        self.conv4 = nn.Conv2d(384, 256, kernel_size=(3, 3), stride=2)
         self.mp3 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
         self.flatten = nn.Flatten()
-        self.linear1 = nn.Linear(4096, 4096)
-        self.dropout = nn.Dropout(0.25)
+        self.linear1 = nn.Linear(2304, 4096)
+        self.dropout = nn.Dropout(0.15)
         self.linear2 = nn.Linear(4096, 1000)
         self.linear3 = nn.Linear(1000, 500)
         self.linear4 = nn.Linear(500, 250)
@@ -111,7 +73,7 @@ class BasicImageClassifier(nn.Module):
         self.linear6 = nn.Linear(100, 50)
         self.linear7 = nn.Linear(50, 25)
         self.linear8 = nn.Linear(25, 12)
-        self.linear9 = nn.Linear(12, 2)
+        self.linear9 = nn.Linear(12, 4)
 
     def forward(self, x):
         """Create Forward Propragration."""
