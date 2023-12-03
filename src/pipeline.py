@@ -24,25 +24,27 @@ import pandas as pd
 from pydicom import dcmread
 from PIL import Image
 from pydicom.errors import InvalidDicomError
-from keras.models import load_model
-from tensorflow.nn import softmax
+import torch
+from torch import optim, nn
+from torch.utils import data
+from torchvision import datasets, transforms
 
+from models import BasicImageClassifier
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
-    df__clean_dataset = pd.read_csv(fn__clean_dataset)
-    img_width = list()
-    img_height = list()
-    for _, row in df__clean_dataset.iterrows():
-        dicom_file = dcmread(row['Full Location'])
-        img = dicom_file.pixel_array
-        img_width.append(img.shape[0])
-        img_height.append(img.shape[1])
-    df__clean_dataset['image width'] = img_width
-    df__clean_dataset['image height'] = img_height
-    df__clean_dataset.to_csv('data/CBIS-DDSM/fully_clean_datasetv2.csv')
+    fn__test_img= "data/Dataset_BUSI_with_GT/benign/benign (1).png"
+    model = BasicImageClassifier()
+    loss_fn = nn.CrossEntropyLoss()
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
+    trainer = TrainModel(model, optimizer, loss_fn)
+    #Gather the data.
+    tforms = transforms.Compose([transforms.Resize((512, 512)), transforms.ToTensor()])
+    fn__train_dataset = "data/Chest_CT_Scans/train/"
+    train_dataset = datasets.ImageFolder(fn__train_dataset, transform=tforms)
+    trainloader = data.DataLoader(train_dataset, batch_size=8)
+    trainer.train(trainloader, 10)
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -258,7 +260,7 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
         raw_data = np.asarray( img ).astype('float32')
         data = (raw_data - np.min(raw_data)) / (np.max(raw_data) - np.min(raw_data))
     if data.ndim == 2:
-        data = data[..., np.newaxis]
+        data = data[np.newaxis, ...]
     else:
         pass
     return data
@@ -485,55 +487,6 @@ def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
     tdata = pd.DataFrame(dfp_list)
     return tdata
 
-def predict(data:pd.DataFrame, model_name, cat_inputs:list=[]) -> pd.DataFrame:
-    """Make predictions based on data provided.
-
-    Extracts the image data using the path column provided
-    by the DataFrame argument and uses the model provided
-    to make the predictions. The algorithm also extracts
-    the necessary categorical data to make the predictions.
-
-    Parameter(s)
-    ------------
-    data : Pandas DataFrame
-        file or object containing the data necessary to
-        make predictions. This must contain the path column
-        and the categorical columns related to the model.
-
-    model_name : str or TensorFlow Model
-        either the path to a TensorFlow model or the model
-        itself. Used to make predictions on the data.
-
-    Returns
-    -------
-    data : Pandas DataFrame
-        predictions together with all of the original
-        information.
-    """
-    if type(model_name) ==str:
-        model = load_model(model_name)
-    else:
-        model = model_name
-    fdata = {'image': np.asarray(data['image'].to_list()), 'cat': np.asarray(data[['age', 'side']])}
-    predictions = model.predict(fdata, batch_size=5)
-    data['sex'] = data['sex'].map(sex)
-    data['modality'] = data['modality'].map(modalities)
-    data['side'] = data['side'].map(sides)
-    if len(predictions) == 1:
-        predictions = predictions[0]
-        data['score'] = [softmax(predictions).numpy().tolist()]
-        data['pred_class'] = class_names[np.argmax(data['score'])]
-    elif len(predictions) >= 2:
-        pred_data = list()
-        for pred in predictions:
-            score = softmax(pred)
-            pclass = class_names[np.argmax(score)]
-            pred_data.append({'score':score.numpy(), 'pred_class':pclass})
-        _df = pd.DataFrame(pred_data)
-        data = data.join(_df)
-    data = data.drop(columns=['image'])
-    return data
-
 def rescale_image(img:np.ndarray) -> np.ndarray:
     """Rescale the image to a more manageable size.
 
@@ -602,6 +555,86 @@ def calculate_confusion_matrix(fin_predictions:pd.DataFrame):
     metrics['Recall'] = tp / (tp + fn) # Ability of model to correctly identify positives
     metrics['F1 Score'] = (2 * metrics['Precision'] * metrics['Recall']) / (metrics['Precision'] + metrics['Recall'])
     return ct, metrics
+
+
+class ImageSet(data.Dataset):
+    """
+    Dataset extracted from paths to cancer images.
+
+    ...
+
+    Dataset subclass that will grab the path to a folder
+    containing the entire set of images and if images are
+    organized based on folders, then it will attach a label.
+    The label will be numerical and represent the origin of the
+    folder.
+    *Alternatively, one can use the torchvision.data.ImageFolder class for the same reason.
+    """
+
+    def __init__(self, root='train/', image_loader=None, transform=None):
+        """Initialize the Dataset Subclass."""
+        self.root = root
+        self.folders = os.listdir(root)
+        self.files = list()
+        self.dict__files = dict()
+        for folder in self.folders:
+            fold = os.path.join(self.root, folder)
+            self.dict__files[folder] = os.listdir(fold)
+            self.files.extend(os.listdir(fold))
+        self.loader = image_loader
+        self.transform = transform
+
+    def __len__(self):
+        """Get the Length of the items within the dataset."""
+        return sum([len(self.files)])
+
+    def __getitem__(self, index):
+        """Get item from class."""
+        images = [self.loader(os.path.join(self.root, folder)) for folder in self.folders]
+        if self.transform is not None:
+            images = [self.transform(img) for img in images]
+        return images
+
+
+class TrainModel:
+    """
+    Class for training pytorch machine learning models.
+
+    This class functions as an environment for training the
+    pytorch models.
+    """
+
+    def __init__(self, model, optimizer, loss):
+        """Initialize the class."""
+        self.model = model
+        self.opt = optimizer
+        self.criterion = loss
+
+    def get_model(self):
+        """Get the Model post training."""
+        return self.model
+
+    def train(self, trainloader:data.DataLoader, epochs:int, gpu=False):
+        """Train the machine learning model."""
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        print("The model wil lbe running on ", device, "device")
+        self.model.to(device)
+        for epoch in range(epochs):
+            running_loss = 0.0
+            for i, (inputs, labels) in enumerate(trainloader, 0):
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                self.opt.zero_grad()
+
+                outputs = self.model(inputs)
+                loss = self.criterion(outputs, labels)
+                loss.backward()
+                self.opt.step()
+
+                running_loss += loss.item()
+                if i % 10 == 9:
+                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 10:.3f}')
+                    running_loss = 0.0
 
 
 if __name__ == "__main__":
