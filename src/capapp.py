@@ -20,7 +20,7 @@ import pydicom as pdc
 from pandas import DataFrame
 
 
-from src.pipeline import extract_data, transform_data, predict
+from pipeline import extract_data, transform_data, predict
 
 
 

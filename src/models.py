@@ -16,9 +16,8 @@ import torch
 from torch import nn
 import torchvision.transforms.functional as TF
 import numpy as np
-import pandas as pd
+import polars as pl
 
-from losses import Dice
 
 img_size = (512, 512)
 mask_size = (512, 512)

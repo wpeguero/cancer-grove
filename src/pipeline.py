@@ -19,8 +19,7 @@ import json
 from collections import defaultdict
 
 import numpy as np
-import dask.array as da
-import pandas as pd
+import polars as pl
 from pydicom import dcmread
 from PIL import Image
 from pydicom.errors import InvalidDicomError
@@ -29,7 +28,10 @@ from torch import optim, nn
 from torch.utils import data
 from torchvision import datasets, transforms
 
-from models import BasicImageClassifier
+if __name__ == "__main__":
+    from models import BasicImageClassifier
+else:
+    from src.models import BasicImageClassifier
 
 ##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
@@ -68,7 +70,7 @@ def gather_segmentation_images(filename:str, paths:str):
         text file containing all of the paths to the image
         files or slices.
     """
-    df = pd.read_csv(filename)
+    df = pl.read_csv(filename)
     with open(paths, 'r') as fp:
         list__paths = fp.readlines()
         fp.close()
@@ -78,7 +80,7 @@ def gather_segmentation_images(filename:str, paths:str):
         exit()
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
-    df = pd.read_csv(filepath)
+    df = pl.read_csv(filepath)
     features = df.iloc[:l]
     feats = features.fillna("blank")
     with open(savepath, 'w') as fp:
@@ -86,8 +88,8 @@ def _extract_feature_definitions(filepath:str, savepath:str, l:int):
         fp.close()
 
 def _remove_first_row(filepath:str, nfilepath:str):
-    xls = pd.ExcelFile(filepath, engine='xlrd')
-    df = pd.read_excel(xls, 0)
+    xls = pl.ExcelFile(filepath, engine='xlrd')
+    df = pl.read_excel(xls, 0)
     df.to_csv(filepath, index=False)
     with open(filepath, 'r') as file:
         data = file.read()
@@ -100,7 +102,7 @@ def _convert_dicom_to_png(filename:str) -> None:
 
     ...
     """
-    df = pd.read_csv(filename)
+    df = pl.read_csv(filename)
     for _, row in df.iterrows():
         ds = dcmread(row['paths'])
         path = pathlib.PurePath(row['paths'])
@@ -125,7 +127,7 @@ def extract_key_images(data_dir:str, metadata_filename:str, new_download = False
     if not new_download:
         return None
     else:
-        df__metadata = pd.read_csv(metadata_filename)
+        df__metadata = pl.read_csv(metadata_filename)
         root_path = os.getcwd()
         root_path = root_path.replace("//", "/")
         img_paths_list = list()
@@ -143,7 +145,7 @@ def extract_key_images(data_dir:str, metadata_filename:str, new_download = False
                     'LeftRight': ds.ImageLaterality
                 }
                 img_paths_list.append(img_paths)
-        df_img_paths = pd.DataFrame(img_paths_list)
+        df_img_paths = pl.DataFrame(img_paths_list)
         return df_img_paths
 
 def extract_dicom_data(file, target_data:list =[]) -> dict:
@@ -334,7 +336,7 @@ def transform_dicom_data(datapoint:dict, definitions:dict) -> dict:
         print('WARNING: Indicator "image" does not exist.')
     return datapoint
 
-def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=None) -> pd.DataFrame:
+def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.DataFrame:
     """Balance data for model training.
 
     Splits the dataset into groups based on the categorical
@@ -386,7 +388,7 @@ def balance_data(df:pd.DataFrame, columns:list=[],sample_size:int=None) -> pd.Da
                 df__selected_group = df_group.sample(n=int(len(df_group)), random_state=42)
             sampled_groups.append(df__selected_group)
             diff_sample_size += sample_group_size - len(df__selected_group)
-        df_balanced = pd.concat(sampled_groups)
+        df_balanced = pl.concat(sampled_groups)
     return df_balanced
 
 def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size:int=1_000, cat_labels:list=[]):
@@ -428,8 +430,8 @@ def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size
         for input to the model.
     """
     if type(filename) == str:
-        df = pd.read_csv(filename)
-    elif type(filename) == pd.DataFrame:
+        df = pl.read_csv(filename)
+    elif type(filename) == pl.DataFrame:
         df = filename
     else:
         print("There was some error.")
@@ -442,20 +444,20 @@ def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size
 
     if bool(cat_labels) == False:
         data = map(extract_data, df_balanced[pathcol])
-        df = pd.DataFrame(list(data))
-        df_full = pd.merge(df_balanced, df, on=pathcol)
+        df = pl.DataFrame(list(data))
+        df_full = pl.merge(df_balanced, df, on=pathcol)
         return df_full
     elif bool(cat_labels) == True:
         full_labels = cat_labels * len(cat_labels) * len(df_balanced)
         data = map(extract_data, df_balanced[pathcol], full_labels)
-        df = pd.DataFrame(list(data))
-        df_full = pd.merge(df, df_balanced, on=pathcol)
+        df = pl.DataFrame(list(data))
+        df_full = pl.merge(df, df_balanced, on=pathcol)
         return df_full
     else:
         print('None of the conditions were met')
         exit()
 
-def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
+def  load_testing_data(filename:str, sample_size= 1_000) -> pl.DataFrame:
     """Load the data used  for testing.
 
     Loads a dataset to be fed into the model for making
@@ -473,7 +475,7 @@ def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
     df__test : Pandas DataFrame
         Contains the all of the data necessary for testing.
     """
-    df = pd.read_csv(filename)
+    df = pl.read_csv(filename)
     df = df.dropna(subset=['classification'])
     df = df.sample(n=sample_size, random_state=42)
     print("iterating through {} rows...".format(len(df)))
@@ -484,7 +486,7 @@ def  load_testing_data(filename:str, sample_size= 1_000) -> pd.DataFrame:
         drow = row.to_dict()
         datapoint.update(drow)
         dfp_list.append(datapoint)
-    tdata = pd.DataFrame(dfp_list)
+    tdata = pl.DataFrame(dfp_list)
     return tdata
 
 def rescale_image(img:np.ndarray) -> np.ndarray:
@@ -513,7 +515,7 @@ def rescale_image(img:np.ndarray) -> np.ndarray:
     img_mod = np.moveaxis(img_mod, 0, -1)
     return img_mod
 
-def calculate_confusion_matrix(fin_predictions:pd.DataFrame):
+def calculate_confusion_matrix(fin_predictions:pl.DataFrame):
     """Calculate the confusion matrix using pandas.
 
     Calculates the confusion matrix using a csv file that
@@ -541,8 +543,7 @@ def calculate_confusion_matrix(fin_predictions:pd.DataFrame):
         - Recall
         - F1 Score
     """
-    ct = pd.crosstab(fin_predictions['pred_class'], fin_predictions['classification'])
-    print(ct)
+    ct = fin_predictions.pivot(values="predictions", index="classification", columns="classification", aggregate_function='count')
     # Set the initial values
     tp = ct.values[1][1]
     tn = ct.values[0][0]
