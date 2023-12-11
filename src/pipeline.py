@@ -267,7 +267,7 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
 
 def merge_dictionaries(*dictionaries) -> dict:
     """Merge n number of dictionaries.
-    
+
     ----------------------------------
 
     Merge any number of dictionary within the variable.
