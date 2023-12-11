@@ -19,7 +19,6 @@ import json
 from collections import defaultdict
 
 import numpy as np
-import dask.array as da
 import pandas as pd
 from pydicom import dcmread
 from PIL import Image
