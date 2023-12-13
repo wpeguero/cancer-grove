@@ -346,7 +346,7 @@ def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.Da
 
     Parameter(s)
     ------------
-    df : Pandas DataFrame
+    df : Polars DataFrame
         Contains all of the data necessary to load the
         training data set.
     columns : list
@@ -371,24 +371,29 @@ def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.Da
     if columns == []:
         df_balanced = df.sample(n=sample_size, random_state=42)
     else:
-        groups = df.groupby(columns)
-        number_groups = len(groups.groups)
-        sample_group_size = int(sample_size / number_groups)
-        sampled_groups = list()
-        diff_sample_size = 0
-        for gtype, df_group in groups:
-            fgroup = sample_group_size + diff_sample_size
-            if len(df_group) >= fgroup:
-                df__selected_group = df_group.sample(n=int(fgroup), random_state=42)
-            elif len(df_group) >= sample_group_size:
-                df__selected_group = df_group.sample(n=int(sample_group_size), random_state=42)
-            elif fgroup <= 0:
-                break
-            else:
-                df__selected_group = df_group.sample(n=int(len(df_group)), random_state=42)
-            sampled_groups.append(df__selected_group)
-            diff_sample_size += sample_group_size - len(df__selected_group)
-        df_balanced = pl.concat(sampled_groups)
+        df.group_by(columns)
+        df.filter(
+                pl.int_range(0, pl.count()).shuffle().over(columns) <= sample_size
+                )
+        df_balanced = df
+        #groups = df.groupby(columns)
+        #number_groups = len(groups.groups)
+        #sample_group_size = int(sample_size / number_groups)
+        #sampled_groups = list()
+        #diff_sample_size = 0
+        #for gtype, df_group in groups:
+        #    fgroup = sample_group_size + diff_sample_size
+        #    if len(df_group) >= fgroup:
+        #        df__selected_group = df_group.sample(n=int(fgroup), random_state=42)
+        #    elif len(df_group) >= sample_group_size:
+        #        df__selected_group = df_group.sample(n=int(sample_group_size), random_state=42)
+        #    elif fgroup <= 0:
+        #        break
+        #    else:
+        #        df__selected_group = df_group.sample(n=int(len(df_group)), random_state=42)
+        #    sampled_groups.append(df__selected_group)
+        #    diff_sample_size += sample_group_size - len(df__selected_group)
+        #df_balanced = pl.concat(sampled_groups)
     return df_balanced
 
 def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size:int=1_000, cat_labels:list=[]):
