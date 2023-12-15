@@ -33,20 +33,23 @@ if __name__ == "__main__":
 else:
     from src.models import BasicImageClassifier
 
-##The dataset had duplicates due to images without any data provided on the clinical analysis. Some images were taken without clinical data for the purpose of simply taking the image. Nothing was identified for these and therefore these should be removed from  the dataset before converting the .dcm files into .png files.
 def _main():
     """Test the new functions."""
-    fn__test_img= "data/Dataset_BUSI_with_GT/benign/benign (1).png"
-    model = BasicImageClassifier()
-    loss_fn = nn.CrossEntropyLoss()
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
-    trainer = TrainModel(model, optimizer, loss_fn)
-    #Gather the data.
-    tforms = transforms.Compose([transforms.Resize((512, 512)), transforms.ToTensor()])
-    fn__train_dataset = "data/Chest_CT_Scans/train/"
-    train_dataset = datasets.ImageFolder(fn__train_dataset, transform=tforms)
-    trainloader = data.DataLoader(train_dataset, batch_size=8)
-    trainer.train(trainloader, 10)
+    fn__meta = 'data/CBIS/csv/meta.csv'
+    fn__dicom_info = 'data/CBIS/csv/dicom_info.csv'
+    fn__calc_train = 'data/CBIS/csv/calc_case_description_train_set.csv'
+    fn__calc_test = 'data/CBIS/csv/calc_case_description_test_set.csv'
+    fn__mass_train = 'data/CBIS/csv/mass_case_description_train_set.csv'
+    fn__mass_test = 'data/CBIS/csv/mass_case_description_test_set.csv'
+    # merge the test and training data into two complete datasets.
+    df__calc_train = pl.read_csv(fn__calc_train)
+    df__calc_test = pl.read_csv(fn__calc_test)
+    df__calc = df__calc_train.extend(df__calc_test)
+    df__calc.write_csv('data/CBIS/csv/calc_case_description.csv')
+    df__mass_train = pl.read_csv(fn__mass_train)
+    df__mass_test = pl.read_csv(fn__mass_test)
+    df__mass = df__mass_train.extend(df__mass_test)
+    df__mass.write_csv('data/CBIS/csv/mass_case_description.csv')
 
 
 def gather_segmentation_images(filename:str, paths:str):
@@ -78,6 +81,27 @@ def gather_segmentation_images(filename:str, paths:str):
         patient_folder = list(filter(lambda x: row['Patient ID'] in x, list__paths))
         print(patient_folder)
         exit()
+
+def _rename_folders(filepath:str):
+    df__dicom_info = pl.read_csv(fn__dicom_info)
+    root_path = 'data/CBIS/jpeg/'
+    list__folders = list() # Contains the new path of the renamed folders that contain images.
+    for row in df__dicom_info.iter_rows(named=True):
+        original_path = str(row['image_path']).split('/')
+        folder_path = os.path.join(root_path, original_path[2])
+        new_path = f'{root_path}{row["PatientID"]}'
+        if (os.path.exists(new_path)) and (os.path.exists(folder_path)):
+            files = os.listdir(folder_path)
+            for file in files:
+                os.replace(os.path.join(folder_path, file), os.path.join(new_path, file))
+        elif (os.path.exists(folder_path) == True) and (os.path.exists(new_path) == False):
+            os.rename(folder_path, new_path)
+        else:
+            pass
+        list__folders.append({'PatientID':row['PatientID'], 'new_path':os.path.join(root_path, row['PatientID'])})
+    df__paths = pl.DataFrame(list__folders)
+    df__paths.write_csv('data/CBIS/csv/image_paths.csv')
+
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
     df = pl.read_csv(filepath)
@@ -371,9 +395,9 @@ def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.Da
     if columns == []:
         df_balanced = df.sample(n=sample_size, random_state=42)
     else:
-        df.group_by(columns)
+        groups = df.group_by(columns)
         df.filter(
-                pl.int_range(0, pl.count()).shuffle().over(columns) <= sample_size
+                pl.int_range(0, pl.count()).shuffle().over(columns) <= (sample_size / len(groups.count()))
                 )
         df_balanced = df
         #groups = df.groupby(columns)
@@ -600,6 +624,57 @@ class ImageSet(data.Dataset):
         if self.transform is not None:
             images = [self.transform(img) for img in images]
         return images
+
+
+class MixedDataset(data.Dataset):
+    """Dataset that inputs image & categorical data.
+
+    Arguments:
+        root (string): directory containing all of the images.
+        csvfile (string): path to the csv with the categorical data.
+
+    """
+
+    def __init__(self, root:str, csvfile:str, image_loader=None, transform=None):
+        """Initialize the class."""
+        self.root = root
+        self.csv = pl.read_csv(csvfile)
+        self.folders = os.listdir(root)
+        self.images = list()
+        self.dict__files = dict()
+        if len(folders) > 1:
+            for folder in self.folders:
+                fold = os.path.join(self.root, folder)
+                self.dict__files[folder] = os.listdir(fold)
+                self.images.extend(os.listdir(fold))
+        else:
+            self.images.append(os.listdir(os.path.join(root, self.folders[0])))
+        self.loader = image_loader
+        self.transform = transform
+
+    def __len__(self):
+        """Calculate the length of the dataset."""
+        return len(self.files)
+
+    def __getitem__(self, index):
+        """Get the datapoint."""
+        if torch.is_tensor(index):
+            index.tolist()
+
+
+class DICOMSet(data.Dataset):
+    """
+    Dataset used to load and extract information from DICOM images.
+
+    ...
+
+    This custom dataset extracts the image from the DICOM file in
+    conjunction with the selected values found within the DICOM file.
+    The data is then brought together to create a singular datapoint
+    to be used in training a machine learning model with mixed input.
+    """
+
+    pass
 
 
 class TrainModel:
