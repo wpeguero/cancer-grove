@@ -1,15 +1,14 @@
-.. Capapp documentation master file, created by
-   sphinx-quickstart on Tue Oct 18 13:51:56 2022.
+.. pyblight documentation master file, created by
+   sphinx-quickstart on Mon Dec 18 12:04:06 2023.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to capstone's documentation!
+Welcome to pyblight's documentation!
 ====================================
 
-**capstone** is a Graphical User Interface for classifying tumors as either benign or malignant based on medical images. It allows the user to load selected DICOM files and have a machine learning model predict whether the tumor is malignant or not. This GUI then proceeds to plot the results and separate the results based on the categorical parameters of the patient.
+**pyblight** is a python library which uses the power of the `pytorch` library to develop machine learning models to classify tumors as either malignant or benign.
 
 .. note::
-
    This project is under active development.
 
 .. toctree::
@@ -29,6 +28,5 @@ Contents
 --------
 
 .. toctree::
-
    usage
    api

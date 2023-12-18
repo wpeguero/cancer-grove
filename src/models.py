@@ -37,8 +37,6 @@ def _main():
 class BasicImageClassifier(nn.Module):
     """Create Basic Image Classifier for model comparison improvement.
 
-    ...
-
     A class containing a simple classifier for any
     sort of image. The models stemming from this
     class will function to only classify the image
@@ -48,6 +46,7 @@ class BasicImageClassifier(nn.Module):
     accuracy between a model with rescaling and
     data augmentation is against a model without
     any of these.
+
     """
 
     def __init__(self):
@@ -100,14 +99,14 @@ class BasicImageClassifier(nn.Module):
 
 
 class DoubleConvolution(nn.Module):
-    """
-    Does the Double Convolution shown within a unit of the U-Net.
+    """Does the Double Convolution shown within a unit of the U-Net.
 
-    Parameter(s)
-    ------------
+    Parameters
+    ----------
     in_channels : Integer
 
     out_channels : Integer
+
     """
 
     def __init__(self, in_channels:int, out_channels:int):
@@ -128,17 +127,17 @@ class DoubleConvolution(nn.Module):
 
 
 class UNet(nn.Module):
-    """
-    Creates a U-Net model for image segmentation.
+    """Creates a U-Net model for image segmentation.
 
     Unique class built to develop U-Net models. Inherits from the
     Module class found in pytorch.
 
-    Parameter(s)
-    ------------
+    Parameters
+    ----------
     in_channels : Integer
 
     out_channels : Integer
+
     """
 
     def __init__(self, in_channels=3, out_channels=1, features=[64, 128, 256, 512]):
@@ -186,10 +185,7 @@ class UNet(nn.Module):
 
 
 class TumorClassifier(nn.Module):
-    """
-    Tumor Classifier Module that uses both categorical data and image data.
-
-    ...
+    """Tumor Classifier Module that uses both categorical data and image data.
 
     The machine learning model uses a combination of an image or
     scan in conjunction with categorical data contained within

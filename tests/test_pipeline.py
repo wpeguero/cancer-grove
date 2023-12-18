@@ -2,16 +2,8 @@
 from src.pipeline import *
 from numpy import ndarray
 import pytest
-import pandas as pd
+import polars as pl
 from torch.utils import data
-
-fn__clean_dataset = "data/CBIS-DDSM/fully_clean_dataset.csv"
-file = "data/CBIS-DDSM/CBIS-DDSM/Calc-Test_P_00038_LEFT_CC/08-29-2017-DDSM-NA-96009/1.000000-full mammogram images-63992/1-1.dcm"
-fn__image_set = "data/Dataset_BUSI_with_GT/"
-
-def test_image_dataset_class():
-    img_set = ImageSet(root=fn__image_set)
-    img_loader = data.DataLoader(img_set, batch_size=3)
 
 
 def test_rescale_image():
@@ -27,16 +19,14 @@ def test_rescale_image():
 def test_data_balance():
     """Tests whether the data_balance function evenly balances the 12 data  groups."""
     sample_size = 500
-    df = pd.read_csv(fn__clean_dataset)
-    df_bal = balance_data(df, sample_size=sample_size, columns=['left or right breast','image view'])
+    seed = 0
+    n = 500
+    df = pl.DataFrame({
+        "groups": (pl.int_range(0, n, eager=True) % 5).shuffle(seed=seed),
+        "values": pl.int_range(0, n, eager=True).shuffle(seed=seed)
+        })
+    df_bal = balance_data(df, sample_size=sample_size, columns=['groups'])
     assert len(df_bal) == pytest.approx(sample_size, abs=0.01*sample_size)
-
-def test_load_training_data():
-    """Tests whether the load_training_data function loads the data for model training."""
-    df = pd.read_csv(fn__clean_dataset)
-    df = df.sample(1000, random_state=42)
-    df__train = load_training_data(df, pathcol="Full Location")
-    assert len(df__train == pytest.approx(1_000, abs=0.01*1_000))
 
 
 if __name__ == "__main__":

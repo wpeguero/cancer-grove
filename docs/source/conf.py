@@ -2,28 +2,28 @@
 #
 # For the full list of built-in configuration values, see the documentation:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
-
 import os
 import sys
-sys.path.insert(0,os.path.abspath('../..'))
+
+sys.path.insert(0, os.path.abspath(os.path.join('..', '..', 'src')))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'capstone'
-copyright = '2022, Wilson B. Peguero Rosario'
+project = 'pyblight'
+copyright = '2023, Wilson B. Peguero Rosario'
 author = 'Wilson B. Peguero Rosario'
-release = '0.1'
+release = '0.1.0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.autosummary',
-    'sphinx.ext.duration',
-    'sphinx.ext.napoleon',
-]
+        'sphinx.ext.autodoc',
+        'sphinx.ext.autosummary',
+        'sphinx.ext.duration',
+        'sphinx.ext.napoleon',
+        ]
 
 templates_path = ['_templates']
 exclude_patterns = []
