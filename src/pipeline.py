@@ -35,21 +35,15 @@ else:
 
 def _main():
     """Test the new functions."""
-    fn__meta = 'data/CBIS/csv/meta.csv'
-    fn__dicom_info = 'data/CBIS/csv/dicom_info.csv'
-    fn__calc_train = 'data/CBIS/csv/calc_case_description_train_set.csv'
-    fn__calc_test = 'data/CBIS/csv/calc_case_description_test_set.csv'
-    fn__mass_train = 'data/CBIS/csv/mass_case_description_train_set.csv'
-    fn__mass_test = 'data/CBIS/csv/mass_case_description_test_set.csv'
-    # merge the test and training data into two complete datasets.
-    df__calc_train = pl.read_csv(fn__calc_train)
-    df__calc_test = pl.read_csv(fn__calc_test)
-    df__calc = df__calc_train.extend(df__calc_test)
-    df__calc.write_csv('data/CBIS/csv/calc_case_description.csv')
-    df__mass_train = pl.read_csv(fn__mass_train)
-    df__mass_test = pl.read_csv(fn__mass_test)
-    df__mass = df__mass_train.extend(df__mass_test)
-    df__mass.write_csv('data/CBIS/csv/mass_case_description.csv')
+    dir__jpegs = 'data/CBIS/jpeg/'
+    p = pathlib.Path(dir__jpegs).glob('**/*')
+    files = [x for x in p if x.is_file()]
+    data = list()
+    for file in files:
+        parts = str(file).split('/')
+        data.append({'patientID': parts[-2], 'path':str(file)})
+    df = pl.DataFrame(data)
+    df.write_csv('data/CBIS/csv/image_paths_v2.csv')
 
 
 def gather_segmentation_images(filename:str, paths:str):
