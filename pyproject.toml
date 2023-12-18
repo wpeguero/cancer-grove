@@ -13,12 +13,12 @@ dependencies = [
 	"pydicom>=2.4.3",
 	"pytest>=7.4.3",
 	"Sphinx>=7.2.6",
-	"torch>=2.1.1+cpu",
-	"torchaudio>=2.1.1+cpu",
-	"torchvision>=0.16.1+cpu",
+	"torch>=2.1.1",
+	"torchaudio>=2.1.1",
+	"torchvision>=0.16.1",
 ]
 authors = [
 	{name = "Wilson B. Peguero Rosario", email = "wpeguerorosario@outlook.com"},
 ]
 readme = "README.md"
-license = "LICENSE.md"
+license = {file = "LICENSE.md"}
