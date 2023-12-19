@@ -26,7 +26,23 @@ from models import BasicImageClassifier
 
 def _main():
     """Test the new functions."""
-    pass
+    fn__mass = 'data/CBIS/csv/mass_case_description.csv'
+    fn__calc = 'data/CBIS/csv/calc_case_description.csv'
+    fn__paths = 'data/CBIS/csv/image_paths_v2.csv'
+    # Load DataFrame
+    df__mass = pl.read_csv(fn__mass)
+    df__calc = pl.read_csv(fn__calc)
+    df__paths = pl.read_csv(fn__paths)
+    df__mass = df__mass.with_columns(
+            patientID = df__mass['image file path'].map_elements(lambda x: str(x).split('/')[0])
+            )
+    df__calc = df__calc.with_columns(
+            patientID = df__calc['image file path'].map_elements(lambda x: str(x).split('/')[0])
+            )
+    df__mass_with_paths = df__mass.join(df__paths, on='patientID')
+    df__mass_with_paths.write_csv('data/CBIS/csv/mass_cases_with_paths.csv')
+    df__calc_with_paths = df__calc.join(df__paths, on='patientID')
+    df__calc_with_paths.write_csv('data/CBIS/csv/calc_cases_with_paths.csv')
 
 
 def _get_list_of_files(root:str) -> pl.DataFrame:
@@ -52,7 +68,6 @@ def gather_segmentation_images(filename:str, paths:str):
 
     Parameters
     ----------
-
     filename : string
         filename containing the training data set with the
         bounding boxes, and the slices or range of slices.
@@ -89,7 +104,6 @@ def _rename_folders(filepath:str):
         list__folders.append({'PatientID':row['PatientID'], 'new_path':os.path.join(root_path, row['PatientID'])})
     df__paths = pl.DataFrame(list__folders)
     df__paths.write_csv('data/CBIS/csv/image_paths.csv')
-
 
 def _extract_feature_definitions(filepath:str, savepath:str, l:int):
     df = pl.read_csv(filepath)
