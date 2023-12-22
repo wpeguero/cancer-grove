@@ -26,23 +26,7 @@ from models import BasicImageClassifier
 
 def _main():
     """Test the new functions."""
-    fn__mass = 'data/CBIS/csv/mass_case_description.csv'
-    fn__calc = 'data/CBIS/csv/calc_case_description.csv'
-    fn__paths = 'data/CBIS/csv/image_paths_v2.csv'
-    # Load DataFrame
-    df__mass = pl.read_csv(fn__mass)
-    df__calc = pl.read_csv(fn__calc)
-    df__paths = pl.read_csv(fn__paths)
-    df__mass = df__mass.with_columns(
-            patientID = df__mass['image file path'].map_elements(lambda x: str(x).split('/')[0])
-            )
-    df__calc = df__calc.with_columns(
-            patientID = df__calc['image file path'].map_elements(lambda x: str(x).split('/')[0])
-            )
-    df__mass_with_paths = df__mass.join(df__paths, on='patientID')
-    df__mass_with_paths.write_csv('data/CBIS/csv/mass_cases_with_paths.csv')
-    df__calc_with_paths = df__calc.join(df__paths, on='patientID')
-    df__calc_with_paths.write_csv('data/CBIS/csv/calc_cases_with_paths.csv')
+    df = load_training_data('data/CBIS/csv/calc_cases_with_paths.csv', 'path')
 
 
 def _get_list_of_files(root:str) -> pl.DataFrame:
@@ -419,7 +403,7 @@ def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.Da
         pass
 
     if columns == []:
-        df_balanced = df.sample(n=sample_size, random_state=42)
+        df_balanced = df.sample(n=sample_size, seed=42)
     else:
         groups = df.group_by(columns)
         df.filter(
@@ -493,18 +477,18 @@ def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size
     if balance == True:
         df_balanced = balance_data(df, sample_size=sample_size)
     else:
-        df_balanced = df.sample(n=sample_size, random_state=42)
+        df_balanced = df.sample(n=sample_size, seed=42)
 
     if bool(cat_labels) == False:
         data = map(extract_data, df_balanced[pathcol])
         df = pl.DataFrame(list(data))
-        df_full = pl.merge(df_balanced, df, on=pathcol)
+        df_full = df_balanced.join(df, on=pathcol)
         return df_full
     elif bool(cat_labels) == True:
         full_labels = cat_labels * len(cat_labels) * len(df_balanced)
         data = map(extract_data, df_balanced[pathcol], full_labels)
         df = pl.DataFrame(list(data))
-        df_full = pl.merge(df, df_balanced, on=pathcol)
+        df_full = df.join(df_balanced, on=pathcol)
         return df_full
     else:
         print('None of the conditions were met')
@@ -530,7 +514,7 @@ def  load_testing_data(filename:str, sample_size= 1_000) -> pl.DataFrame:
     """
     df = pl.read_csv(filename)
     df = df.dropna(subset=['classification'])
-    df = df.sample(n=sample_size, random_state=42)
+    df = df.sample(n=sample_size, seed=42)
     print("iterating through {} rows...".format(len(df)))
     dfp_list = list()
     for _, row in df.iterrows():
@@ -665,22 +649,12 @@ class MixedDataset(data.Dataset):
         path to the csv with the categorical data.
     """
 
-    def __init__(self, root:str, csvfile:str, image_loader=None, transform=None):
+    def __init__(self, csvfile:str, image_loader=None, image_transforms=None, label_transforms=None):
         """Initialize the class."""
-        self.root = root
         self.csv = pl.read_csv(csvfile)
-        self.folders = os.listdir(root)
-        self.images = list()
-        self.dict__files = dict()
-        if len(folders) > 1:
-            for folder in self.folders:
-                fold = os.path.join(self.root, folder)
-                self.dict__files[folder] = os.listdir(fold)
-                self.images.extend(os.listdir(fold))
-        else:
-            self.images.append(os.listdir(os.path.join(root, self.folders[0])))
         self.loader = image_loader
-        self.transform = transform
+        self.image_transforms = image_transforms
+        self.label_transforms = label_transforms
 
     def __len__(self):
         """Calculate the length of the dataset."""
@@ -690,6 +664,14 @@ class MixedDataset(data.Dataset):
         """Get the datapoint."""
         if torch.is_tensor(index):
             index.tolist()
+        image = Image.open(self.csv['path'][index])
+        if self.image_transforms:
+            image = self.image_transforms(image)
+        labels = np.array(self.csv.select(pl.exclude('path')))
+        if self.label_transforms:
+            labels = self.label_transforms(labels)
+        sample = {'image':image, 'labels':labels}
+        return sample
 
 
 class DICOMSet(data.Dataset):
