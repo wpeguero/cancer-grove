@@ -264,8 +264,8 @@ def extract_dicom_data(file, target_data:list =[]) -> dict:
 def load_image(filename:str, size:tuple) -> np.ndarray:
     """Load the image based on the path.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     filename : string
         string containing the relative or absolute path to
         the image.
@@ -297,8 +297,8 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
 def merge_dictionaries(*dictionaries) -> dict:
     """Merge n number of dictionaries.
 
-    Parameter
-    ---------
+    Parameters
+    ----------
     dictionaries : list of dictionaries
         Contains dictionaries with related data. These dictionaries
         represent a separate data point each.
@@ -691,20 +691,55 @@ class TrainModel:
 
     This class functions as an environment for training the
     pytorch models.
+
+    Parameters
+    ----------
+    model : torch Module
+        Model which will be trained within this class.
+    optimizer : torch Optimizer
+        optimizer used to change the weights on the machine
+        learning model.
+    loss : torch Loss
+        The chosen loss to compare the prediction and the target.
     """
 
-    def __init__(self, model, optimizer, loss):
+    def __init__(self, model:nn.Module, optimizer:optim.Optimizer, loss):
         """Initialize the class."""
         self.model = model
         self.opt = optimizer
         self.criterion = loss
 
     def get_model(self):
-        """Get the Model post training."""
+        """Get the Model post training.
+
+        Returns
+        -------
+        torch Module
+            The model at any point in time before or after training.
+        """
         return self.model
 
     def train(self, trainloader:data.DataLoader, epochs:int, gpu=False):
-        """Train the machine learning model."""
+        """Train the machine learning model.
+
+        Uses the given model, optimizer, and loss provided when the
+        class was initizalized in conjunction with the trainloader to
+        train the given model. The model is trained based on the
+        number of epochs provided. For each epoch, the model is
+        trained by iterating through the dataset and the model
+        weights are updated based on the loss.
+
+        Parameters
+        ----------
+        trainloader : torch DataLoader
+            dataset loaded and ready for model training.
+
+        epochs : int
+            number of times the model loops through the batched set.
+
+        gpu : bool
+            Determines whether the gpu is used to train dataset.
+        """
         device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         print("The model wil lbe running on ", device, "device")
         self.model.to(device)
