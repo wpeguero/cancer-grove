@@ -2,14 +2,13 @@ Source Code Listing
 -------------------
 
 .. automodule:: capapp
-    :members:
-    :undoc-members:
+   :members:
+   :undoc-members:
 
 .. automodule:: models
-    :members:
-    :undoc-members:
+   :members:
+   :undoc-members:
 
 .. automodule:: pipeline
-    :members:
-    :undoc-members:
-
+   :members:
+   :undoc-members:
