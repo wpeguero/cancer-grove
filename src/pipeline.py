@@ -64,7 +64,7 @@ def gather_segmentation_images(filename:str, paths:str):
     with open(paths, 'r') as fp:
         list__paths = fp.readlines()
         fp.close()
-    for _, row in df.iterrows():
+    for _, row in df.iter_rows():
         patient_folder = list(filter(lambda x: row['Patient ID'] in x, list__paths))
         print(patient_folder)
         exit()
