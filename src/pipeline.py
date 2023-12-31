@@ -26,7 +26,11 @@ from models import BasicImageClassifier
 
 def _main():
     """Test the new functions."""
-    df = load_training_data('data/CBIS/csv/calc_cases_with_paths.csv', 'path')
+    fn__mass = 'data/CBIS/csv/mass_cases_with_paths.csv'
+    fn__calc = 'data/CBIS/csv/calc_cases_with_paths.csv'
+    mass_dataset = MixedDataset(csvfile=fn__mass)
+    calc_dataset = MixedDataset(csvfile=fn__calc)
+    # Optional Alternative for concatenating datasets: concat_set = data.ConcatDataset([mass_dataset, calc_dataset])
 
 
 def _get_list_of_files(root:str) -> pl.DataFrame:
@@ -647,18 +651,21 @@ class MixedDataset(data.Dataset):
         directory containing all of the images.
     csvfile : str
         path to the csv with the categorical data.
+    label_column : str
+        Column containing the label about cancer.
     """
 
-    def __init__(self, csvfile:str, image_loader=None, image_transforms=None, label_transforms=None):
+    def __init__(self, csvfile:str, label_column:str='pathology', image_loader=None, image_transforms=None, cat_transforms=None):
         """Initialize the class."""
         self.csv = pl.read_csv(csvfile)
+        self.lcol = label_column
         self.loader = image_loader
         self.image_transforms = image_transforms
-        self.label_transforms = label_transforms
+        self.cat_transforms = cat_transforms
 
     def __len__(self):
         """Calculate the length of the dataset."""
-        return len(self.files)
+        return self.csv.select(pl.count()).item()
 
     def __getitem__(self, index):
         """Get the datapoint."""
@@ -667,10 +674,11 @@ class MixedDataset(data.Dataset):
         image = Image.open(self.csv['path'][index])
         if self.image_transforms:
             image = self.image_transforms(image)
-        labels = np.array(self.csv.select(pl.exclude('path')))
-        if self.label_transforms:
+        supplementary_data = np.array(self.csv.select(pl.exclude('path', self.lcol)))
+        labels = np.array(self.csv.select(self.lcol))
+        if self.cat_transforms:
             labels = self.label_transforms(labels)
-        sample = {'image':image, 'labels':labels}
+        sample = {'image':image, 'supplementary data':supplementary_data, 'labels':labels}
         return sample
 
 
