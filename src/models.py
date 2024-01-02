@@ -223,9 +223,9 @@ class TumorClassifier(nn.Module):
             cat_input_length = cat_input_length / 2
         self.outlinear = nn.Linear(int(cat_input_length + 12), 2)
 
-    def forward(self, input1, input2):
+    def forward(self, x1, x2):
         """Propagate throughout the machine learning model."""
-        x1 = self.conv1(input1)
+        x1 = self.conv1(x1)
         x1 = self.mp1(x1)
         x1 = self.bn1(x1)
         x1 = self.conv2(x1)
@@ -245,8 +245,8 @@ class TumorClassifier(nn.Module):
         x1 = self.linear7(x1)
         x1 = self.linear8(x1)
         for linear in self.catlinears:
-            input2 = linear(input2)
-        concat = torch.cat((x1, input2), dim=1)
+            x2 = linear(x2)
+        concat = torch.cat((x1, x2), dim=1)
         output = self.outlinear(concat)
         return output
 
