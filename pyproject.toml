@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "Pyblight"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
 	"dash>=2.14.2",
 	"gunicorn>=21.2.0",
