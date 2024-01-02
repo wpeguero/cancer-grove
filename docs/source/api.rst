@@ -12,3 +12,11 @@ Source Code Listing
 .. automodule:: pipeline
    :members:
    :undoc-members:
+
+.. automodule:: trainers
+   :members:
+   :undoc-members:
+
+.. automodule:: datasets
+   :members:
+   :undoc-members:
