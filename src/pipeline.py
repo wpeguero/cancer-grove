@@ -23,16 +23,71 @@ from torch.utils import data
 from torchvision import datasets, transforms
 
 from models import BasicImageClassifier
+from datasets import MixedDataset
+from trainers import TrainModel
 
 def _main():
     """Test the new functions."""
     fn__mass = 'data/CBIS/csv/mass_cases_with_paths.csv'
     fn__calc = 'data/CBIS/csv/calc_cases_with_paths.csv'
+    img_transforms = transforms.Compose([
+        transforms.Resize(512),
+        transforms.ToTensor()
+        ])
     mass_dataset = MixedDataset(csvfile=fn__mass)
     mass_dataloader = data.DataLoader(mass_dataset)
     calc_dataset = MixedDataset(csvfile=fn__calc)
     # Optional Alternative for concatenating datasets: concat_set = data.ConcatDataset([mass_dataset, calc_dataset])
+    df__mass = pl.read_csv(fn__mass)
+    cols = ['pathology', 'mass shape', 'mass margins']
+    df = convert_string_to_cat(df__mass, cols)
+    print(df.select(pl.col('pathology').to_physical()))
+    print(df.select(pl.col('pathology').cat.get_categories()))
 
+
+def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
+    """Convert the string column to categorical column.
+
+    Uses polars' casting capabilities to transform either one or
+    multiple columns from the string datatype to the categorical
+    datatype.
+
+    Parameters
+    ----------
+    df : Polars DataFrame
+        The dataframe containing the columns.
+    col : String or List
+        The variable containing the column(s).
+    Returns
+    -------
+    Polars DataFrame
+        Contains the new dataframe with the converted columns.
+
+    Examples
+    --------
+    >>> from pipeline import convert_string_to_cat
+    >>> import polars as pl
+    >>> df = pl.DataFrame({
+    ...     "cat": ['hello', 'goodbye'],
+    ...     "bar": [1, 2]
+    ... })
+    >>> df = convert_string_to_cat(df, 'cat')
+
+    Now that we have the column within the correct type one can
+    make the categorical data into a numerical type through the
+    following code.
+
+    >>> df = df.with_columns(pl.col('cat').to_physical)
+
+    """
+    if type(col) == str:
+        df = df.with_columns(pl.col(col).cast(pl.Categorical))
+    elif type(col) == list:
+        df = df.with_columns(list(pl.col(c).cast(pl.Categorical) for c in col))
+    else:
+        print("Cannot process type: {}".format(type(col)))
+        exit()
+    return df
 
 def _get_list_of_files(root:str) -> pl.DataFrame:
     """Get the list of files within given directory."""
