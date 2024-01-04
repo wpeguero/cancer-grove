@@ -6,6 +6,7 @@ import polars as pl
 
 
 def _main():
+    """Test the new functions."""
     pass
 
 
@@ -53,15 +54,19 @@ class MixedDataset(data.Dataset):
     ----------
     root : str
         directory containing all of the images.
-    csvfile : str
-        path to the csv with the categorical data.
+    csvfile : str | Polars DataFrame
+        path to the csv with the categorical data or the loaded file
+        using the Polars library.
     label_column : str
         Column containing the label about cancer.
     """
 
-    def __init__(self, csvfile:str, label_column:str='pathology', image_loader=None, image_transforms=None, cat_transforms=None):
+    def __init__(self, csvfile:str|pl.DataFrame, label_column:str='pathology', image_loader=None, image_transforms=None, cat_transforms=None):
         """Initialize the class."""
-        self.csv = pl.read_csv(csvfile)
+        if type(csvfile) == str:
+            self.csv = pl.read_csv(csvfile)
+        else:
+            self.csv = csvfile
         self.lcol = label_column
         self.loader = image_loader
         self.image_transforms = image_transforms
@@ -96,6 +101,7 @@ class DICOMSet(data.Dataset):
     """
 
     pass
+
 
 if __name__ == "__main__":
     _main()

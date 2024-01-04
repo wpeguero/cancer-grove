@@ -28,21 +28,7 @@ from trainers import TrainModel
 
 def _main():
     """Test the new functions."""
-    fn__mass = 'data/CBIS/csv/mass_cases_with_paths.csv'
-    fn__calc = 'data/CBIS/csv/calc_cases_with_paths.csv'
-    img_transforms = transforms.Compose([
-        transforms.Resize(512),
-        transforms.ToTensor()
-        ])
-    mass_dataset = MixedDataset(csvfile=fn__mass)
-    mass_dataloader = data.DataLoader(mass_dataset)
-    calc_dataset = MixedDataset(csvfile=fn__calc)
-    # Optional Alternative for concatenating datasets: concat_set = data.ConcatDataset([mass_dataset, calc_dataset])
-    df__mass = pl.read_csv(fn__mass)
-    cols = ['pathology', 'mass shape', 'mass margins']
-    df = convert_string_to_cat(df__mass, cols)
-    print(df.select(pl.col('pathology').to_physical()))
-    print(df.select(pl.col('pathology').cat.get_categories()))
+    pass
 
 
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
