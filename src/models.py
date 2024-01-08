@@ -18,7 +18,6 @@ import torchvision.transforms.functional as TF
 import numpy as np
 import polars as pl
 
-
 img_size = (512, 512)
 mask_size = (512, 512)
 tsize = 8
@@ -27,37 +26,39 @@ validate = False
 version=3
 
 def _main():
-    model = TumorClassifier(4)
+    model = BasicImageClassifier()
     img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", img_size)
     img = torch.from_numpy(img)
     #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
-    model(img.unsqueeze(0), torch.Tensor([1, 2, 3, 4]).unsqueeze(0))
+    model(img.unsqueeze(0))
 
 
 class BasicImageClassifier(nn.Module):
     """Create Basic Image Classifier for model comparison improvement.
 
-    A class containing a simple classifier for any
-    sort of image. The models stemming from this
-    class will function to only classify the image
-    in one manner alone (malignant or non-malignant).
-    This model will not contain any rescaling or
-    data augmentation to show how significant the
-    accuracy between a model with rescaling and
-    data augmentation is against a model without
-    any of these.
+    A class containing a simple classifier for any sort of image. The
+    models stemming from this class will function to only classify
+    the image in one manner alone (malignant or non-malignant). This
+    model will not contain any rescaling or data augmentation to show
+    how significant the accuracy between a model with rescaling and
+    data augmentation is against a model without any of these. This
+    only works for images that are of the size 512 by 512.
 
+    Parameters
+    ----------
+    n_channels : int
+        The number of channels associated with the image.
     """
 
-    def __init__(self):
+    def __init__(self, n_channels:int=1):
         """Initialize the image classifier."""
         super(BasicImageClassifier, self).__init__()
-        self.conv1 = nn.Conv2d(3, 96, kernel_size=(3, 3), stride=2)
-        self.mp1 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.conv1 = nn.Conv2d(n_channels, 96, kernel_size=(3, 3), stride=2)
         self.bn1 = nn.BatchNorm2d(96)
+        self.mp1 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
         self.conv2 = nn.Conv2d(96, 256, kernel_size=(3,3), stride=2)
-        self.mp2 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
         self.bn2 = nn.BatchNorm2d(256)
+        self.mp2 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
         self.conv3 = nn.Conv2d(256, 384, kernel_size=(3, 3), stride=2)
         self.conv4 = nn.Conv2d(384, 256, kernel_size=(3, 3), stride=2)
         self.mp3 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
