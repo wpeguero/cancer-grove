@@ -11,15 +11,14 @@ def _main():
 
 
 class ImageSet(data.Dataset):
-    """Dataset extracted from paths to cancer images.
-
-    Dataset subclass that will grab the path to a folder
-    containing the entire set of images and if images are
-    organized based on folders, then it will attach a label.
-    The label will be numerical and represent the origin of the
-    folder.
+    """Dataset that will load unlabeled images.
 
     *Alternatively, one can use the torchvision.data.ImageFolder class for the same reason.*
+
+    Parameters
+    ----------
+    root : str
+        Path to the folder containing the data.
     """
 
     def __init__(self, root='train/', image_loader=None, transform=None):
