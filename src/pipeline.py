@@ -23,12 +23,27 @@ from torch.utils import data
 from torchvision import datasets, transforms
 
 from models import BasicImageClassifier
-from datasets import MixedDataset
 from trainers import TrainModel
+
+img_size = (256, 256)
 
 def _main():
     """Test the new functions."""
-    pass
+    fn__images = "data/Dataset_BUSI_with_GT/"
+    img_transforms = transforms.Compose([
+        transforms.Resize(256),
+        transforms.ToTensor()
+        ])
+    dset = datasets.ImageFolder(fn__images, transform=img_transforms)
+    dloader = data.DataLoader(dset)
+    model = BasicImageClassifier()
+    opt = optim.Adam(model.parameters())
+    loss = nn.BCELoss()
+    model = BasicImageClassifier(n_channels=1)
+    img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", 256)
+    img = torch.from_numpy(img)
+    #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
+    model(img.unsqueeze(0))
 
 
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
@@ -307,7 +322,7 @@ def extract_dicom_data(file, target_data:list =[]) -> dict:
     datapoint['Patient ID'] = ds.PatientID
     return datapoint
 
-def load_image(filename:str, size:tuple) -> np.ndarray:
+def load_image(filename:str, size:tuple|int) -> np.ndarray:
     """Load the image based on the path.
 
     Parameters
@@ -315,9 +330,10 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
     filename : string
         string containing the relative or absolute path to
         the image.
-    size : tuple
-        List containing the desired width and height to
-        readjust the image.
+    size : tuple | int
+        tuple containing the desired width and height to
+        readjust the image. In the case that the image is
+        square, then the size may be an integer.
 
     Returns
     -------
@@ -327,7 +343,11 @@ def load_image(filename:str, size:tuple) -> np.ndarray:
 
     """
     img = Image.open( filename ).convert('L')
-    img = img.resize(size)
+    if type(size) == int:
+        tsize = (size, size)
+        img = img.resize(tsize)
+    else:
+        img = img.resize(size)
     img.load()
     if 'mask' in filename:
         data = np.asarray( img ).astype('int32')
@@ -645,6 +665,13 @@ def calculate_confusion_matrix(fin_predictions:pl.DataFrame):
     metrics['Recall'] = tp / (tp + fn) # Ability of model to correctly identify positives
     metrics['F1 Score'] = (2 * metrics['Precision'] * metrics['Recall']) / (metrics['Precision'] + metrics['Recall'])
     return ct, metrics
+
+activation={}
+def get_activation(name):
+    """Extract the activation of a specific layer."""
+    def hook(model, input, output):
+        activation[name] = output.detach()
+    return hook
 
 
 if __name__ == "__main__":
