@@ -31,19 +31,22 @@ def _main():
     """Test the new functions."""
     fn__images = "data/Dataset_BUSI_with_GT/"
     img_transforms = transforms.Compose([
-        transforms.Resize(256),
+        transforms.Resize((512,512)),
         transforms.ToTensor()
         ])
-    dset = datasets.ImageFolder(fn__images, transform=img_transforms)
+    target_transform = transforms.Lambda(lambda y: torch.zeros(4, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=1))
+    dset = datasets.ImageFolder(fn__images, transform=img_transforms, target_transform=target_transform)
     dloader = data.DataLoader(dset)
     model = BasicImageClassifier()
     opt = optim.Adam(model.parameters())
-    loss = nn.BCELoss()
-    model = BasicImageClassifier(n_channels=1)
-    img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", 256)
-    img = torch.from_numpy(img)
+    loss = nn.CrossEntropyLoss()
+    model = BasicImageClassifier(n_channels=3)
+    #img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", 512)
+    #img = torch.from_numpy(img)
     #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
-    model(img.unsqueeze(0))
+    #model(img.unsqueeze(0))
+    trainer = TrainModel(model, opt, loss)
+    trainer.train(dloader, 10, gpu=True)
 
 
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
