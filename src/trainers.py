@@ -78,6 +78,5 @@ class TrainModel:
                 self.opt.step()
 
                 running_loss += loss.item()
-                if i == steps_per_epoch:
+                if i+1 == steps_per_epoch:
                     print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / steps_per_epoch:.3f}')
-                    running_loss = 0.0
