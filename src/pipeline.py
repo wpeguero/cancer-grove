@@ -23,42 +23,42 @@ from torch import optim, nn
 from torch.utils import data
 from torchvision import datasets, transforms
 
-from models import BasicImageClassifier
+from models import BasicImageClassifier, TutorialNet
 from trainers import TrainModel
 
-img_size = (256, 256)
+img_size = (100, 100)
 
 def _main():
     """Test the new functions."""
-    fn__images = "data/Chest_CT_Scans/train/"
+    #fn__images = "data/Chest_CT_Scans/train/"
+    fn__images = "data/cat_loaf_set/"
     img_transforms = transforms.Compose([
-        transforms.Resize((512,512)),
+        transforms.Resize(img_size),
         transforms.Grayscale(num_output_channels=3),
         transforms.ToTensor(),
         transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         ])
-    target_transform = transforms.Lambda(lambda y: torch.zeros(4, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=1))
+    target_transform = transforms.Lambda(lambda y: torch.zeros(2, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=1))
     dset = datasets.ImageFolder(fn__images, transform=img_transforms, target_transform=target_transform)
     dloader = data.DataLoader(dset, shuffle=True, batch_size=8)
-    model = BasicImageClassifier()
-    opt = optim.Adam(model.parameters(), lr=0.005)
+    model = TutorialNet(3)
+    opt = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
     loss = nn.CrossEntropyLoss()
-    model = BasicImageClassifier(n_channels=3)
     # Sample image for the sake of testing
-    img = Image.open("data/Chest_CT_Scans/test/squamous.cell.carcinoma/000129 (6).png")
-    print(img)
+    #img = Image.open("data/Chest_CT_Scans/test/squamous.cell.carcinoma/000129 (6).png")
+    #print(img)
     #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
     #model(img.unsqueeze(0))
     trainer = TrainModel(model, opt, loss)
     trainer.train(dloader, 30, gpu=True)
     model = trainer.get_model()
     torch.save(model.state_dict(), 'models/model_1.pt')
-    img = img_transforms(img)
+    #img = img_transforms(img)
     #model.register_forward_hook(get_activation('conv1'))
-    with torch.no_grad():
-        output = model.conv1(img.to('cuda').unsqueeze(0))
-    fig = px.imshow(output.to('cpu')[0], facet_col=0, facet_col_wrap=5)
-    fig.show()
+    #with torch.no_grad():
+    #    output = model.conv1(img.to('cuda').unsqueeze(0))
+    #fig = px.imshow(output.to('cpu')[0], facet_col=0, facet_col_wrap=5)
+    #fig.show()
 
 
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:

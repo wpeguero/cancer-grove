@@ -53,17 +53,15 @@ class BasicImageClassifier(nn.Module):
     def __init__(self, n_channels:int=1):
         """Initialize the image classifier."""
         super(BasicImageClassifier, self).__init__()
-        self.conv1 = nn.Conv2d(n_channels, 16, kernel_size=(3, 3), stride=2)
+        self.conv1 = nn.Conv2d(n_channels, 16, kernel_size=(3, 3), stride=2, padding=1)
         self.bn1 = nn.BatchNorm2d(16)
-        self.mp1 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
-        self.conv2 = nn.Conv2d(16, 64, kernel_size=(3,3), stride=2)
+        self.mp = nn.MaxPool2d(kernel_size=(3, 3), stride=2, padding=1)
+        self.conv2 = nn.Conv2d(16, 64, kernel_size=(3,3), stride=2, padding=1)
         self.bn2 = nn.BatchNorm2d(64)
-        self.mp2 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=(3, 3), stride=2)
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=(3, 3), stride=2)
-        self.mp3 = nn.MaxPool2d(kernel_size=(3, 3), stride=2)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=(3, 3), stride=2, padding=1)
+        self.conv4 = nn.Conv2d(128, 256, kernel_size=(3, 3), stride=2, padding=1)
         self.flatten = nn.Flatten()
-        self.linear1 = nn.Linear(2304, 1500)
+        self.linear1 = nn.Linear(256, 1500)
         self.dropout = nn.Dropout(0.25)
         self.linear2 = nn.Linear(1500, 1000)
         self.linear3 = nn.Linear(1000, 500)
@@ -72,20 +70,24 @@ class BasicImageClassifier(nn.Module):
         self.linear6 = nn.Linear(100, 50)
         self.linear7 = nn.Linear(50, 25)
         self.linear8 = nn.Linear(25, 12)
-        self.linear9 = nn.Linear(12, 4)
+        self.linear9 = nn.Linear(12, 2)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         """Create Forward Propragration."""
         x = self.conv1(x)
+        x = self.sigmoid(x)
         x = self.bn1(x)
-        x = self.mp1(x)
+        x = self.mp(x)
         x = self.conv2(x)
+        x = self.sigmoid(x)
         x = self.bn2(x)
-        x = self.mp2(x)
+        x = self.mp(x)
         x = self.conv3(x)
+        x = self.sigmoid(x)
         x = self.conv4(x)
-        x = self.mp3(x)
+        x = self.sigmoid(x)
+        x = self.mp(x)
         x = self.flatten(x)
         x = self.linear1(x)
         x = self.dropout(x)
@@ -253,6 +255,43 @@ class TumorClassifier(nn.Module):
         output = self.outlinear(concat)
         return output
 
+
+class TutorialNet(nn.Module):
+    """Tutorial CNN from Pytorch
+
+    Parameters
+    ----------
+    in_channels : int
+        The number of channels for input.
+    """
+
+    def __init__(self, in_channels:int=1):
+        """Init the Class."""
+        super(TutorialNet, self).__init__()
+        self.conv1 = nn.Conv2d(3, 6, kernel_size=5)
+        self.relu = nn.ReLU()
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(7744, 120)
+        self.fc2 = nn.Linear(120, 84)
+        self.fc3 = nn.Linear(84,2)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.relu(x)
+        x = self.pool(x)
+        x = self.conv2(x)
+        x = self.relu(x)
+        x = self.pool(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.fc2(x)
+        x = self.relu(x)
+        x = self.fc3(x)
+        x = self.relu(x)
+        return x
 
 
 if __name__ == "__main__":

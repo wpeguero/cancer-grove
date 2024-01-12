@@ -67,6 +67,7 @@ class TrainModel:
         print("Starting Training.")
         for epoch in range(epochs):
             running_loss = 0.0
+            self.model.train(True)
             for i, (inputs, labels) in enumerate(trainloader, 0):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
