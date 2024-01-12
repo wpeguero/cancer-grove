@@ -13,6 +13,7 @@ import json
 from collections import defaultdict
 
 import numpy as np
+import plotly.express as px
 import polars as pl
 from pydicom import dcmread
 from PIL import Image
@@ -29,24 +30,35 @@ img_size = (256, 256)
 
 def _main():
     """Test the new functions."""
-    fn__images = "data/Dataset_BUSI_with_GT/"
+    fn__images = "data/Chest_CT_Scans/train/"
     img_transforms = transforms.Compose([
         transforms.Resize((512,512)),
-        transforms.ToTensor()
+        transforms.Grayscale(num_output_channels=3),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
         ])
     target_transform = transforms.Lambda(lambda y: torch.zeros(4, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=1))
     dset = datasets.ImageFolder(fn__images, transform=img_transforms, target_transform=target_transform)
-    dloader = data.DataLoader(dset)
+    dloader = data.DataLoader(dset, shuffle=True, batch_size=8)
     model = BasicImageClassifier()
-    opt = optim.Adam(model.parameters())
+    opt = optim.Adam(model.parameters(), lr=0.005)
     loss = nn.CrossEntropyLoss()
     model = BasicImageClassifier(n_channels=3)
-    #img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", 512)
-    #img = torch.from_numpy(img)
+    # Sample image for the sake of testing
+    img = Image.open("data/Chest_CT_Scans/test/squamous.cell.carcinoma/000129 (6).png")
+    print(img)
     #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
     #model(img.unsqueeze(0))
     trainer = TrainModel(model, opt, loss)
-    trainer.train(dloader, 10, gpu=True)
+    trainer.train(dloader, 30, gpu=True)
+    model = trainer.get_model()
+    torch.save(model.state_dict(), 'models/model_1.pt')
+    img = img_transforms(img)
+    #model.register_forward_hook(get_activation('conv1'))
+    with torch.no_grad():
+        output = model.conv1(img.to('cuda').unsqueeze(0))
+    fig = px.imshow(output.to('cpu')[0], facet_col=0, facet_col_wrap=5)
+    fig.show()
 
 
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
