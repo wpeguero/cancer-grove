@@ -85,7 +85,7 @@ class AlexNet(nn.Module):
                 )
         self.fc3 = nn.Sequential(
                 nn.Linear(4096, n_classes),
-                nn.ReLU()
+                nn.Softmax(dim=1)
                 )
 
     def forward(self, x):
@@ -291,7 +291,6 @@ class TutorialNet(nn.Module):
         x = self.fc2(x)
         x = self.relu(x)
         x = self.fc3(x)
-        x = self.relu(x)
         return x
 
 
