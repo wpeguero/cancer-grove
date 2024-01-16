@@ -33,73 +33,71 @@ def _main():
     model(img.unsqueeze(0))
 
 
-class BasicImageClassifier(nn.Module):
-    """Create Basic Image Classifier for model comparison improvement.
-
-    A class containing a simple classifier for any sort of image. The
-    models stemming from this class will function to only classify
-    the image in one manner alone (malignant or non-malignant). This
-    model will not contain any rescaling or data augmentation to show
-    how significant the accuracy between a model with rescaling and
-    data augmentation is against a model without any of these. This
-    only works for images that are of the size 512 by 512.
+class AlexNet(nn.Module):
+    """Basic Model from 2012 Competition.
 
     Parameters
     ----------
+    n_classes : int
+        The number of classes at output.
     n_channels : int
-        The number of channels associated with the image.
+        The number of channels of the image.
     """
 
-    def __init__(self, n_channels:int=1):
-        """Initialize the image classifier."""
-        super(BasicImageClassifier, self).__init__()
-        self.conv1 = nn.Conv2d(n_channels, 16, kernel_size=(3, 3), stride=2, padding=1)
-        self.bn1 = nn.BatchNorm2d(16)
-        self.mp = nn.MaxPool2d(kernel_size=(3, 3), stride=2, padding=1)
-        self.conv2 = nn.Conv2d(16, 64, kernel_size=(3,3), stride=2, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=(3, 3), stride=2, padding=1)
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=(3, 3), stride=2, padding=1)
+    def __init__(self, n_classes:int, n_channels:int=1):
+        """Init the Class."""
+        super(AlexNet, self).__init__()
+        self.n_classes = n_classes
+        self.n_channels = n_channels
+        self.layer1 = nn.Sequential(
+                nn.Conv2d(n_channels, 96, kernel_size=11, stride=4, padding=0),
+                nn.BatchNorm2d(96),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2)
+                )
+        self.layer2 = nn.Sequential(
+                nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
+                nn.BatchNorm2d(256),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2)
+                )
+        self.layer3 = nn.Sequential(
+                nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(384),
+                nn.ReLU()
+                )
+        self.layer4 = nn.Sequential(
+                nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
+                nn.BatchNorm2d(256),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=3, stride=2)
+                )
         self.flatten = nn.Flatten()
-        self.linear1 = nn.Linear(256, 1500)
-        self.dropout = nn.Dropout(0.25)
-        self.linear2 = nn.Linear(1500, 1000)
-        self.linear3 = nn.Linear(1000, 500)
-        self.linear4 = nn.Linear(500, 250)
-        self.linear5 = nn.Linear(250, 100)
-        self.linear6 = nn.Linear(100, 50)
-        self.linear7 = nn.Linear(50, 25)
-        self.linear8 = nn.Linear(25, 12)
-        self.linear9 = nn.Linear(12, 2)
-        self.sigmoid = nn.Sigmoid()
+        self.fc1 = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(50_176, 4096),
+                nn.ReLU()
+                )
+        self.fc2 = nn.Sequential(
+                nn.Dropout(0.5),
+                nn.Linear(4096, 4096),
+                nn.ReLU()
+                )
+        self.fc3 = nn.Sequential(
+                nn.Linear(4096, n_classes),
+                nn.ReLU()
+                )
 
     def forward(self, x):
-        """Create Forward Propragration."""
-        x = self.conv1(x)
-        x = self.sigmoid(x)
-        x = self.bn1(x)
-        x = self.mp(x)
-        x = self.conv2(x)
-        x = self.sigmoid(x)
-        x = self.bn2(x)
-        x = self.mp(x)
-        x = self.conv3(x)
-        x = self.sigmoid(x)
-        x = self.conv4(x)
-        x = self.sigmoid(x)
-        x = self.mp(x)
+        """Forward pass of the model."""
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
         x = self.flatten(x)
-        x = self.linear1(x)
-        x = self.dropout(x)
-        x = self.linear2(x)
-        x = self.linear3(x)
-        x = self.linear4(x)
-        x = self.linear5(x)
-        x = self.linear6(x)
-        x = self.linear7(x)
-        x = self.linear8(x)
-        x = self.linear9(x)
-        x = self.sigmoid(x)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        x = self.fc3(x)
         return x
 
 
@@ -257,15 +255,17 @@ class TumorClassifier(nn.Module):
 
 
 class TutorialNet(nn.Module):
-    """Tutorial CNN from Pytorch
+    """Tutorial CNN from Pytorch.
 
     Parameters
     ----------
     in_channels : int
         The number of channels for input.
+    n_classes : int
+        The number of classes.
     """
 
-    def __init__(self, in_channels:int=1):
+    def __init__(self, in_channels:int=1, n_classes:int=2):
         """Init the Class."""
         super(TutorialNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, kernel_size=5)
@@ -273,11 +273,12 @@ class TutorialNet(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(7744, 120)
+        self.fc1 = nn.Linear(250_000, 120) # 7744
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84,2)
+        self.fc3 = nn.Linear(84,n_classes)
 
     def forward(self, x):
+        """Forward Pass of the model."""
         x = self.conv1(x)
         x = self.relu(x)
         x = self.pool(x)
