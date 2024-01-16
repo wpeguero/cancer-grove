@@ -68,6 +68,8 @@ class TrainModel:
         for epoch in range(epochs):
             running_loss = 0.0
             self.model.train(True)
+            correct = 0
+            total = 0
             for i, (inputs, labels) in enumerate(trainloader, 0):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
@@ -78,6 +80,10 @@ class TrainModel:
                 loss.backward()
                 self.opt.step()
 
+                _, ipredicted = torch.max(outputs.data, 1)
+                _, lindices = torch.max(labels.data, 1)
+                total += labels.size(0)
+                correct += (ipredicted == lindices).sum().item()
                 running_loss += loss.item()
                 if i+1 == steps_per_epoch:
-                    print(f'[{epoch + 1:3d}/{epochs}, {i + 1:5d}] loss: {running_loss / steps_per_epoch:.3f}')
+                    print(f'[{epoch + 1:3d}/{epochs}, {i + 1:5d}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
