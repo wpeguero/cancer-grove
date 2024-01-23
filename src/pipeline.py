@@ -23,16 +23,19 @@ from torch import optim, nn
 from torch.utils import data
 from torchvision import datasets, transforms
 
-from models import TutorialNet, AlexNet
-from trainers import TrainModel
+from models import CustomCNN, AlexNet
+from trainers import TrainModel, version
 import models
 
-version = 2
 img_size = (512, 512)
+torch.manual_seed(42)
+torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
     fn__images = "data/Chest_CT_Scans/train/"
+    fn__test_images = "data/Chest_CT_Scans/test/"
+    classes = ('adenocarcinoma', 'large.cell.carcinoma', 'normal', 'squamous.cell.carcinoma')
     #fn__images = "data/cat_loaf_set/"
     img_transforms = transforms.Compose([
         transforms.Resize(img_size),
@@ -42,10 +45,13 @@ def _main():
         ])
     target_transform = transforms.Lambda(lambda y: torch.zeros(4, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=1))
     dset = datasets.ImageFolder(fn__images, transform=img_transforms, target_transform=target_transform)
-    dloader = data.DataLoader(dset, shuffle=True, batch_size=16)
+    testset = datasets.ImageFolder(fn__test_images, transform=img_transforms, target_transform=target_transform)
+    dloader = data.DataLoader(dset, shuffle=True, batch_size=16, num_workers=4)
+    testloader = data.DataLoader(testset, shuffle=True, batch_size=16, num_workers=4)
     #model = TutorialNet(3, 4)
-    model = AlexNet(4, 3)
-    opt = optim.SGD(model.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
+    model = CustomCNN(3, 4)
+    #model = AlexNet(3, 4)
+    opt = optim.SGD(model.parameters(), lr=0.005, weight_decay=0.005, momentum=0.9)
     loss = nn.CrossEntropyLoss()
     # Sample image for the sake of testing
     #img = Image.open("data/Chest_CT_Scans/test/squamous.cell.carcinoma/000129 (6).png")
@@ -54,8 +60,9 @@ def _main():
     #model(img.unsqueeze(0))
     trainer = TrainModel(model, opt, loss)
     trainer.train(dloader, 100, gpu=True)
+    trainer.test(testloader, classes, gpu=True)
     model = trainer.get_model()
-    torch.save(model.state_dict(), 'models/model_{}.pt'.format(version))
+    torch.save(model.state_dict(), 'models/{}_model_{}.pt'.format(model.__class__.__name__, version))
     #img = img_transforms(img)
     #model.register_forward_hook(get_activation('conv1'))
     #with torch.no_grad():
