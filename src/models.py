@@ -33,6 +33,103 @@ def _main():
     model(img.unsqueeze(0))
 
 
+class CustomCNN(nn.Module):
+    """Custom Convolutional Neural Network.
+
+    A CNN built on pure experimentation, each layer was based on pure
+    experimentation with the cancer classification dataset. Although
+    this may have started with a simple Convolutional Layer, but will
+    evolve based on its accuracy.
+
+    Parameters
+    ----------
+    n_channels : int
+        The number of channels that the image possesses.
+
+    n_classes : int
+        The number of classifications within the dataset.
+    """
+
+    def __init__(self, n_channels:int=1, n_classes:int=2):
+        """Init the Class."""
+        super(CustomCNN, self).__init__()
+        assert n_classes > 1, "Number of classes must be greater than one."
+        # Repeatable Units
+        self.relu = nn.ReLU()
+        self.softmax = nn.Softmax(dim=1)
+        self.mp = nn.MaxPool2d(kernel_size=3, stride=2)
+        self.flatten = nn.Flatten()
+        self.dropout = nn.Dropout()
+        # Convolutions
+        self.conv1 = nn.Conv2d(n_channels, 96, kernel_size=11)
+        self.conv2 = nn.Conv2d(96, 256, kernel_size=5)
+        self.conv3 = nn.Conv2d(256, 384, kernel_size=3)
+        self.conv4 = nn.Conv2d(384, 512, kernel_size=3)
+        self.conv5 = nn.Conv2d(512, 640, kernel_size=3)
+        self.conv6 = nn.Conv2d(640, 768, kernel_size=3)
+        # Batch Normalizations
+        self.bn1 = nn.BatchNorm2d(96)
+        self.bn2 = nn.BatchNorm2d(256)
+        self.bn3 = nn.BatchNorm2d(384)
+        self.bn4 = nn.BatchNorm2d(512)
+        self.bn5 = nn.BatchNorm2d(640)
+        self.bn6 = nn.BatchNorm2d(768)
+        # Linears
+        self.linear1 = nn.Linear(12_288, 6144)
+        self.linear2 = nn.Linear(6144, 2048)
+        self.linear3 = nn.Linear(2048, 1024)
+        self.linear4 = nn.Linear(1024, 512)
+        self.linear5 = nn.Linear(512, 256)
+        self.linear6 = nn.Linear(256, 128)
+        self.linear7 = nn.Linear(128, n_classes)
+
+    def forward(self, x):
+        """Forward pass of the model."""
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.mp(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.mp(x)
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        x = self.mp(x)
+        x = self.conv4(x)
+        x = self.bn4(x)
+        x = self.relu(x)
+        x = self.mp(x)
+        x = self.conv5(x)
+        x = self.bn5(x)
+        x = self.relu(x)
+        x = self.mp(x)
+        x = self.conv6(x)
+        x = self.bn6(x)
+        x = self.relu(x)
+        x = self.mp(x)
+        x = self.flatten(x)
+        x = self.dropout(x)
+        x = self.linear1(x)
+        x = self.relu(x)
+        x = self.linear2(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.linear3(x)
+        x = self.relu(x)
+        x = self.linear4(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.linear5(x)
+        x = self.relu(x)
+        x = self.linear6(x)
+        x = self.relu(x)
+        x = self.linear7(x)
+        x = self.softmax(x)
+        return x
+
+
 class AlexNet(nn.Module):
     """Basic Model from 2012 Competition.
 
@@ -44,7 +141,7 @@ class AlexNet(nn.Module):
         The number of channels of the image.
     """
 
-    def __init__(self, n_classes:int, n_channels:int=1):
+    def __init__(self, n_channels:int=1, n_classes:int=2):
         """Init the Class."""
         super(AlexNet, self).__init__()
         self.n_classes = n_classes
