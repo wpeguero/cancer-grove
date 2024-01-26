@@ -24,7 +24,7 @@ from torch.utils import data
 from torchvision import datasets, transforms
 
 from models import CustomCNN, AlexNet
-from trainers import TrainModel, version
+from trainers import TrainModel, VERSION
 import models
 
 img_size = (512, 512)
@@ -60,9 +60,16 @@ def _main():
     #model(img.unsqueeze(0))
     trainer = TrainModel(model, opt, loss)
     trainer.train(dloader, 100, gpu=True)
-    trainer.test(testloader, classes, gpu=True)
+    trainer.test(testloader, classes, gpu=True, version=VERSION)
     model = trainer.get_model()
-    torch.save(model.state_dict(), 'models/{}_model_{}.pt'.format(model.__class__.__name__, version))
+    torch.save(model.state_dict(), 'models/{}_model_{}.pt'.format(model.__class__.__name__, VERSION))
+    with open('src/model_version.txt', 'r+') as fp:
+        cv = int(fp.read())
+        nv = cv + 1
+        fp.seek(0)
+        fp.truncate()
+        fp.write(str(nv))
+        fp.close()
     #img = img_transforms(img)
     #model.register_forward_hook(get_activation('conv1'))
     #with torch.no_grad():
