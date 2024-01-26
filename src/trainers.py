@@ -3,7 +3,9 @@ import torch
 from torch import nn, optim
 from torch.utils import data
 
-version = 1
+with open('src/model_version.txt', 'r') as fp:
+    VERSION = int(fp.read())
+    fp.close()
 
 class TrainModel:
     """Class for training pytorch machine learning models.
@@ -66,7 +68,7 @@ class TrainModel:
         print("The model will be running on ", device, "device")
         self.model.to(device)
         steps_per_epoch = len(trainloader.dataset) // trainloader.batch_size
-        print("Starting Training.")
+        print("Starting Training of {} version {}.".format(self.model.__class__.__name__, VERSION))
         for epoch in range(epochs):
             running_loss = 0.0
             self.model.train(True)
@@ -89,7 +91,7 @@ class TrainModel:
                 running_loss += loss.item()
             print(f'[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
 
-    def test(self, testloader:data.DataLoader, classes:tuple, gpu=False):
+    def test(self, testloader:data.DataLoader, classes:tuple, gpu=False, version:int=0):
         """Test the model's ability to classify on a never before seen dataset.
 
         Parameters
