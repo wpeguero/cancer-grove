@@ -133,35 +133,6 @@ def _get_list_of_files(root:str) -> pl.DataFrame:
     df = pl.DataFrame(data)
     return df
 
-def gather_segmentation_images(filename:str, paths:str):
-    """Get all of the Images with Segmentations.
-
-    Gathers all of the image slices together with the
-    respective segmentations. As this only uses the Patient
-    ID as the unique identifier, only one of the folders
-    after the patient id directory will be chosen together
-    with the image slices. The most consistent folder may
-    be used as all patients will share this folder.
-
-    Parameters
-    ----------
-    filename : string
-        filename containing the training data set with the
-        bounding boxes, and the slices or range of slices.
-
-    paths : string
-        text file containing all of the paths to the image
-        files or slices.
-    """
-    df = pl.read_csv(filename)
-    with open(paths, 'r') as fp:
-        list__paths = fp.readlines()
-        fp.close()
-    for _, row in df.iter_rows():
-        patient_folder = list(filter(lambda x: row['Patient ID'] in x, list__paths))
-        print(patient_folder)
-        exit()
-
 def _rename_folders(filepath:str):
     df__dicom_info = pl.read_csv(fn__dicom_info)
     root_path = 'data/CBIS/jpeg/'
@@ -217,6 +188,37 @@ def _convert_dicom_to_png(filename:str) -> None:
         final_image = Image.fromarray(scaled_image)
         final_image.save(f"data/CMMD-set/classifying_set/raw_png/{row['Subject ID'] + '_' + name + ds.ImageLaterality}.png")
     return None
+
+def gather_segmentation_images(filename:str, paths:str, id:str):
+    """Get all of the Images with Segmentations.
+
+    Gathers all of the image slices together with the
+    respective segmentations. As this only uses the Patient
+    ID as the unique identifier, only one of the folders
+    after the patient id directory will be chosen together
+    with the image slices. The most consistent folder may
+    be used as all patients will share this folder.
+
+    Parameters
+    ----------
+    filename : string
+        filename containing the training data set with the
+        bounding boxes, and the slices or range of slices.
+
+    paths : string
+        text file containing all of the paths to the image
+        files or slices.
+    id : string
+        the unique identifier for the sample.
+    """
+    df = pl.read_csv(filename)
+    with open(paths, 'r') as fp:
+        list__paths = fp.readlines()
+        fp.close()
+    for _, row in df.iter_rows():
+        patient_folder = list(filter(lambda x: row[id] in x, list__paths))
+        print(patient_folder)
+        exit()
 
 def extract_key_images(data_dir:str, metadata_filename:str, new_download = False):
     """Extract the key images based on the Annotation Boxes file.
