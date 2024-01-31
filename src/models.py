@@ -397,6 +397,46 @@ class TutorialNet(nn.Module):
         return x
 
 
+class Inception(nn.Module):
+    """The pyblight version of Inception Classifier."""
+
+    def __init__(self, in_channels:int=3, use_auxiliary:bool=True, num_classes:int=2):
+        """Init the class."""
+        super(Inception, self).__init__()
+        # Convolutions
+        ## Stem
+        ### Input Convolutions (3 in total)
+        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding='valid')
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding='valid')
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding='same')
+        ### Left Branch 1 Convolutions (0 in total)
+        ### Right Branch 1 Convolutions (1 in total)
+        self.convb1r1 = nn.Conv2d(64, 92, kernel_size=3, stride=2, padding='valid')
+
+        ### Left Branch 2 Convolutions (2 in total)
+        self.convb2l1 = nn.Conv2d(2*96, 64, kernel_size=1, padding='same')
+        self.convb2l2 = nn.Conv2d(64, 96, kernel_size=3, padding='valid')
+        ### Right Branch 2 Convolutions (4 in total)
+        self.convb2r1 = nn.Conv2d(2*96,64, kernel_size=1, padding='same')
+        self.convb2r2 = nn.Conv2d(64,64, kernel_size=(7,1), padding='same')
+        self.convb2r3 = nn.Conv2d(64,64, kernel_size=(1,7), padding='same')
+        self.convb2r4 = nn.Conv2d(64,96, kernel_size=3, padding='valid')
+
+        ### Left Branch 3 Convolutions (1 in total)
+        self.convb3l1 = nn.Conv2d(2*96, 192, kernel_size=3, padding='valid')
+        ### Right Branch 3 Convolutions (0 in total)
+
+        # Batch Normalization
+        self.bn1 = nn.BatchNorm2d(64)
+        self.bn2 = nn.BatchNorm2d(192)
+
+        # Repeatable layers
+        self.mp = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.dropout = nn.Dropout(0.4)
+        self.ap = nn.AvgPool2d(kernel_size=7, stride=1)
+        self.relu = nn.ReLU()
+
+
 if __name__ == "__main__":
     _main()
 
