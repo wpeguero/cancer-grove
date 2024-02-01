@@ -496,7 +496,7 @@ class InceptionStem(nn.Module):
 
 
 class InceptionA(nn.Module):
-    """The First Inception Block within the Inception Network."""
+    """The First Inception Block Within the Inception Network."""
 
     def __init__(self, n_features:int):
         """Init the class."""
@@ -523,7 +523,7 @@ class InceptionA(nn.Module):
         self.bn43 = nn.BatchNorm2d(96)
 
         # Repeatable Layers
-        self.avgpool = nn.AvgPool2d(kernel_size=3)
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -553,6 +553,84 @@ class InceptionA(nn.Module):
         x4 = self.relu(x4)
         x4 = self.conv43(x4)
         x4 = self.bn43(x4)
+        x4 = self.relu(x4)
+        x = torch.cat((x1, x2, x3, x4), dim=1)
+        return x
+
+
+class InceptionB(nn.Module):
+    """The Second Inception Block Within the Inception Network."""
+
+    def __init__(self, n_features:int):
+        """Init the class."""
+        # Convolutions
+        ## Branch 1 (1 in total)
+        self.conv11 = nn.Conv2d(n_features, 128, kernel_size=1, padding='same')
+        ## Branch 2 (1 in total)
+        self.conv21 = nn.Conv2d(n_features, 384, kernel_size=1, padding='same')
+        ## Branch 3 (3 in total)
+        self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
+        self.conv32 = nn.Conv2d(192, 224, kernel_size=(1,7), padding='same')
+        self.conv33 = nn.Conv2d(224, 256, kernel_size=(1,7), padding='same')
+        ## Branch 4 (5 in total)
+        self.conv41 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
+        self.conv42 = nn.Conv2d(192, 192, kernel_size=(1,7), padding='same')
+        self.conv43 = nn.Conv2d(192, 224, kernel_size=(7,1), padding='same')
+        self.conv44 = nn.Conv2d(224, 224, kernel_size=(1,7), padding='same')
+        self.conv45 = nn.Conv2d(224, 256, kernel_size=(7,1), padding='same')
+
+        # Batch Normalizations
+        self.bn11 = nn.BatchNorm2d(128)
+        self.bn21 = nn.BatchNorm2d(384)
+        self.bn31 = nn.BatchNorm2d(192)
+        self.bn32 = nn.BatchNorm2d(224)
+        self.bn33 = nn.BatchNorm2d(256)
+        self.bn41 = nn.BatchNorm2d(192)
+        self.bn42 = nn.BatchNorm2d(192)
+        self.bn43 = nn.BatchNorm2d(224)
+        self.bn44 = nn.BatchNorm2d(224)
+        self.bn45 = nn.BatchNorm2d(256)
+
+        # Repeatable Layers
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        """Forward Loop of the Module."""
+        # Branch 1
+        x1 = self.avgpool(x)
+        x1 = self.conv11(x1)
+        x1 = self.bn11(x1)
+        x1 = self.relu(x1)
+        # Branch 2
+        x2 = self.conv21(x)
+        x2 = self.bn21(x2)
+        x2 = self.relu(x2)
+        # Branch 3
+        x3 = self.conv31(x)
+        x3 = self.bn31(x3)
+        x3 = self.relu(x3)
+        x3 = self.conv32(x3)
+        x3 = self.bn32(x3)
+        x3 = self.relu(x3)
+        x3 = self.conv33(x3)
+        x3 = self.bn33(x3)
+        x3 = self.relu(x3)
+        # Branch 4
+        x4 = self.conv41(x)
+        x4 = self.bn41(x4)
+        x4 = self.relu(x4)
+        x4 = self.conv42(x4)
+        x4 = self.bn42(x4)
+        x4 = self.relu(x4)
+        x4 = self.conv43(x4)
+        x4 = self.bn43(x4)
+        x4 = self.relu(x4)
+        x4 = self.conv44(x4)
+        x4 = self.bn44(x4)
+        x4 = self.relu(x4)
+        x4 = self.conv45(x4)
+        x4 = self.bn45(x4)
         x4 = self.relu(x4)
         x = torch.cat((x1, x2, x3, x4), dim=1)
         return x
