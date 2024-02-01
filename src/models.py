@@ -397,44 +397,86 @@ class TutorialNet(nn.Module):
         return x
 
 
-class Inception(nn.Module):
-    """The pyblight version of Inception Classifier."""
+class InceptionStem(nn.Module):
+    """The Stem Section of the Inception Model Architecture."""
 
-    def __init__(self, in_channels:int=3, use_auxiliary:bool=True, num_classes:int=2):
+    def __init__(self,in_channels:int=3, num_classes:int=2):
         """Init the class."""
-        super(Inception, self).__init__()
+        super(InceptionStem, self).__init__(self)
         # Convolutions
-        ## Stem
-        ### Input Convolutions (3 in total)
         self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding='valid')
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, stride=1, padding='valid')
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding='same')
-        ### Left Branch 1 Convolutions (0 in total)
-        ### Right Branch 1 Convolutions (1 in total)
-        self.convb1r1 = nn.Conv2d(64, 92, kernel_size=3, stride=2, padding='valid')
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding='valid')
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding='same')
+        ## Split 1
+        ### Branch 1 (0 Convolutions in total)
+        ### Branch 2 (1 Convolutions in total)
+        self.conv121 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding='valid')
+        ## Split 2
+        ### Branch 1 (2 Convolutions in total)
+        self.conv211 = nn.Conv2d(160, 64, kernel_size=1, padding='same')
+        self.conv212 = nn.Conv2d(64, 96, kernel_size=3, padding='valid')
+        ### Branch 2 (4 Convolutions in total)
+        self.conv221 = nn.Conv2d(160, 64, kernel_size=1, padding='same')
+        self.conv222 = nn.Conv2d(64, 64, kernel_size=(7,1), padding='same')
+        self.conv223 = nn.Conv2d(64, 64, kernel_size=(1,7), padding='same')
+        self.conv224 = nn.Conv2d(64, 96, kernel_size=3, padding='valid')
+        ## Split 3
+        ### Branch 1 (1 Convolutions in total)
+        self.conv311 = nn.Conv2d(192, 192, kernel_size=3, padding='valid')
+        ###Branch 2 (0 Convolutions in total)
 
-        ### Left Branch 2 Convolutions (2 in total)
-        self.convb2l1 = nn.Conv2d(2*96, 64, kernel_size=1, padding='same')
-        self.convb2l2 = nn.Conv2d(64, 96, kernel_size=3, padding='valid')
-        ### Right Branch 2 Convolutions (4 in total)
-        self.convb2r1 = nn.Conv2d(2*96,64, kernel_size=1, padding='same')
-        self.convb2r2 = nn.Conv2d(64,64, kernel_size=(7,1), padding='same')
-        self.convb2r3 = nn.Conv2d(64,64, kernel_size=(1,7), padding='same')
-        self.convb2r4 = nn.Conv2d(64,96, kernel_size=3, padding='valid')
+        # Batch Normalizations
+        self.bn1 = nn.BatchNorm2d(32)
+        self.bn2 = nn.BatchNorm2d(32)
+        self.bn3 = nn.BatchNorm2d(64)
+        self.bn121 = nn.BatchNorm2d(64)
+        self.bn211 = nn.BatchNorm2d(64)
+        self.bn221 = nn.BatchNorm2d(64)
+        self.bn222 = nn.BatchNorm2d(64)
+        self.bn223 = nn.BatchNorm2d(64)
 
-        ### Left Branch 3 Convolutions (1 in total)
-        self.convb3l1 = nn.Conv2d(2*96, 192, kernel_size=3, padding='valid')
-        ### Right Branch 3 Convolutions (0 in total)
-
-        # Batch Normalization
-        self.bn1 = nn.BatchNorm2d(64)
-        self.bn2 = nn.BatchNorm2d(192)
-
-        # Repeatable layers
-        self.mp = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.dropout = nn.Dropout(0.4)
-        self.ap = nn.AvgPool2d(kernel_size=7, stride=1)
+        # Repeatable Layers
         self.relu = nn.ReLU()
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding='valid')
+
+    def forward(self, x):
+        """Forward loop of the model."""
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.conv2(x)
+        x = self.bn2(x)
+        x = self.relu(x)
+        x = self.conv3(x)
+        x = self.bn3(x)
+        x = self.relu(x)
+        # Split 1
+        ## Branch 1
+        x0 = self.maxpool(x)
+        ## Branch 2
+        x1 = self.conv121(x)
+        x1 = self.bn121(x1)
+        x1 = self.relu(x1)
+        # End of Split 1
+        x = torch.cat((x0, x1), dim=1)
+        # Split 2
+        ## Branch 1
+        x0 = self.conv211(x)
+        x0 = self.conv212(x0)
+        ## Branch 2
+        x1 = self.conv221(x)
+        x1 = self.conv222(x1)
+        x1 = self.conv223(x1)
+        x1 = self.conv224(x1)
+        # End of Split 2
+        x = torch.cat((x0, x1), dim=1)
+        # Split 3
+        ## Branch 1
+        x0 = self.conv311(x)
+        ## Branch 2
+        x1 = self.maxpool(x)
+        x = torch.cat((x0, x1), dim=1)
+        return x
 
 
 if __name__ == "__main__":
