@@ -714,6 +714,99 @@ class InceptionC(nn.Module):
         return x
 
 
+class ReductionA(nn.Module):
+    """First Reduction Block from the Inception Neural Network V4."""
+
+    def __init__(self, n_features:int):
+        """Init the class."""
+        # Convolutions
+        ## Branch 1 (0 in total)
+        ## Branch 2 (1 in total)
+        self.conv21 = nn.Conv2d(n_features, 384, kernel_size=3, stride=2, padding='valid')
+        ## Branch 3 (3 in total)
+        self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
+        self.conv32 = nn.Conv2d(192, 224, kernel_size=3, padding='same')
+        self.conv33 = nn.Conv2d(224, 256, kernel_size=3, stride=2, padding='valid')
+
+        # Batch Normalizations
+        self.bn21 = nn.BatchNorm2d(384)
+        self.bn31 = nn.BatchNorm2d(192)
+        self.bn32 = nn.BatchNorm2d(224)
+        self.bn33 = nn.BatchNorm2d(256)
+
+        # Repeatable Layers
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding='valid')
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        """Forward pass of the neural network."""
+        x1 = self.maxpool(x)
+        x2 = self.conv21(x)
+        x2 = self.bn21(x2)
+        x2 = self.relu(x2)
+        x3 = self.conv31(x)
+        x3 = self.bn31(x3)
+        x3 = self.relu(x3)
+        x3 = self.conv32(x3)
+        x3 = self.bn32(x3)
+        x3 = self.relu(x3)
+        x3 = self.conv33(x3)
+        x3 = self.bn33(x3)
+        x3 = self.relu(x3)
+        x = torch.cat((x1, x2, x3), dim=1)
+
+
+class ReductionB(nn.Module):
+    """The Second Reduction From the Inception V4 Neural Network."""
+
+    def __init__(self, n_features:int):
+        """Init the class."""
+        # Convolutions
+        ## Branch 1 (0 in total)
+        ## Branch 2 (2 in total)
+        self.conv21 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
+        self.conv22 = nn.Conv2d(192, 192, kernel_size=3, stride=2, padding='valid')
+        ### Branch 3 (4 in total)
+        self.conv31 = nn.Conv2d(n_features, 256, kernel_size=1, padding='same')
+        self.conv32 = nn.Conv2d(256, 256, kernel_size=(1,7), padding='same')
+        self.conv33 = nn.Conv2d(256, 320, kernel_size=(7, 1), padding='same')
+        self.conv34 = nn.Conv2d(320, 320, kernel_size=3, stride=2, padding='valid')
+
+        # Batch Normalizations
+        self.bn21 = nn.BatchNorm2d(192)
+        self.bn22 = nn.BatchNorm2d(192)
+        self.bn31 = nn.BatchNorm2d(256)
+        self.bn32 = nn.BatchNorm2d(256)
+        self.bn33 = nn.BatchNorm2d(320)
+        self.bn34 = nn.BatchNorm2d(320)
+
+        # Repeatable Layers
+        self.relu = nn.ReLU()
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding='valid')
+
+    def forward(self, x):
+        """Forward pass of the neural network."""
+        x1 = self.maxpool(x)
+        x2 = self.conv21(x)
+        x2 = self.bn21(x2)
+        x2 = self.relu(x2)
+        x2 = self.conv22(x2)
+        x2 = self.bn22(x2)
+        x2 = self.relu(x2)
+        x3 = self.conv31(x)
+        x3 = self.bn31(x3)
+        x3 = self.relu(x3)
+        x3 = self.conv32(x)
+        x3 = self.bn32(x3)
+        x3 = self.relu(x3)
+        x3 = self.conv33(x)
+        x3 = self.bn33(x3)
+        x3 = self.relu(x3)
+        x3 = self.conv34(x)
+        x3 = self.bn34(x3)
+        x3 = self.relu(x3)
+        x = torch.cat((x1, x2, x3), dim=1)
+        return x
 
 
 if __name__ == "__main__":
