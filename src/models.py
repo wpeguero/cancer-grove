@@ -636,6 +636,85 @@ class InceptionB(nn.Module):
         return x
 
 
+class InceptionC(nn.Module):
+    """The Third Inception Block Within the Inception Network."""
+
+    def __init__(self, n_features:int):
+        """Init the class."""
+        # Convolutions
+        ## Branch 1 (1 in total)
+        self.conv11 = nn.Conv2d(n_features/2, 256, kernel_size=1, padding='same')
+        ## Branch 2 (1 in total)
+        self.conv21 = nn.Conv2d(n_features, 256, kernel_size=1, padding='same')
+        ## Branch 3 (3 in total)
+        self.conv31 = nn.Conv2d(n_features, 384, kernel_size=1, padding='same')
+        self.conv32l = nn.Conv2d(384, 256, kernel_size=(1,3), padding='same')
+        self.conv32r = nn.Conv2d(384, 256, kernel_size=(3,1), padding='same')
+        ## Branch 4 (5 in total)
+        self.conv41 = nn.Conv2d(n_features, 384, kernel_size=1, padding='same')
+        self.conv42 = nn.Conv2d(384, 448, kernel_size=(1,3), padding='same')
+        self.conv43 = nn.Conv2d(448, 512, kernel_size=(3,1), padding='same')
+        self.conv44l = nn.Conv2d(512, 256, kernel_size=(3,1), padding='same')
+        self.conv44r = nn.Conv2d(512, 256, kernel_size=(1,3), padding='same')
+
+        # Batch Normalizations
+        self.bn11 = nn.BatchNorm2d(256)
+        self.bn21 = nn.BatchNorm2d(256)
+        self.bn31 = nn.BatchNorm2d(384)
+        self.bn32l = nn.BatchNorm2d(256)
+        self.bn32r = nn.BatchNorm2d(256)
+        self.bn41 = nn.BatchNorm2d(384)
+        self.bn42 = nn.BatchNorm2d(448)
+        self.bn43 = nn.BatchNorm2d(512)
+        self.bn44l = nn.BatchNorm2d(256)
+        self.bn44r = nn.BatchNorm2d(256)
+
+        # Repeatable Layers
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        """Forward pass of the network."""
+        # Branch 1
+        x1 = self.avgpool(x)
+        x1 = self.conv11(x1)
+        x1 = self.bn11(x1)
+        x1 = self.relu(x1)
+        # Branch 2
+        x2 = self.conv21(x)
+        x2 = self.bn21(x2)
+        x2 = self.relu(x2)
+        # Branch 3
+        x3 = self.conv31(x)
+        x3 = self.bn31(x3)
+        x3 = self.relu(x3)
+        x3l = self.conv32l(x3)
+        x3l = self.bn32l(x3l)
+        x3l = self.relu(x3l)
+        x3r = self.conv32r(x3)
+        x3r = self.bn32r(x3r)
+        x3r = self.relu(x3r)
+        # Branch 4
+        x4 = self.conv41(x)
+        x4 = self.bn41(x4)
+        x4 = self.relu(x4)
+        x4 = self.conv42(x4)
+        x4 = self.bn42(x4)
+        x4 = self.relu(x4)
+        x4 = self.conv43(x4)
+        x4 = self.bn43(x4)
+        x4 = self.relu(x4)
+        x4l = self.conv44l(x4)
+        x4l = self.bn44l(x4l)
+        x4l = self.relu(x4l)
+        x4r = self.conv44r(x4)
+        x4r = self.bn44r(x4r)
+        x4r = self.relu(x4r)
+        x = torch.cat((x1, x2, x3l, x3r, x4l, x4r), dim=1)
+        return x
+
+
+
 
 if __name__ == "__main__":
     _main()
