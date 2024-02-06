@@ -26,7 +26,19 @@ validate = False
 version=3
 
 def _main():
-    model = BasicImageClassifier()
+    model = nn.Sequential(
+            InceptionStem(3),
+            InceptionA(384),
+            ReductionA(384),
+            InceptionB(1024),
+            ReductionB(1024),
+            InceptionC(1536),
+            nn.Flatten(),
+            nn.AvgPool2d(kernel_size=3, stride=2),
+            nn.Dropout(0.8),
+            nn.Softmax(4)
+            )
+    exit()
     img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", img_size)
     img = torch.from_numpy(img)
     #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
@@ -400,9 +412,9 @@ class TutorialNet(nn.Module):
 class InceptionStem(nn.Module):
     """The Stem Section of the Inception Model Architecture."""
 
-    def __init__(self,in_channels:int=3, num_classes:int=2):
+    def __init__(self, in_channels:int=3):
         """Init the class."""
-        super(InceptionStem, self).__init__(self)
+        super(InceptionStem, self).__init__()
         # Convolutions
         self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding='valid')
         self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding='valid')
@@ -500,6 +512,8 @@ class InceptionA(nn.Module):
 
     def __init__(self, n_features:int):
         """Init the class."""
+        super(InceptionA, self).__init__()
+
         # Convolutions
         ## Branch 1 (1 in total)
         self.conv11 = nn.Conv2d(n_features, 96, kernel_size=1, padding='same')
@@ -563,6 +577,7 @@ class InceptionB(nn.Module):
 
     def __init__(self, n_features:int):
         """Init the class."""
+        super(InceptionB, self).__init__()
         # Convolutions
         ## Branch 1 (1 in total)
         self.conv11 = nn.Conv2d(n_features, 128, kernel_size=1, padding='same')
@@ -641,9 +656,10 @@ class InceptionC(nn.Module):
 
     def __init__(self, n_features:int):
         """Init the class."""
+        super(InceptionC, self).__init__()
         # Convolutions
         ## Branch 1 (1 in total)
-        self.conv11 = nn.Conv2d(n_features/2, 256, kernel_size=1, padding='same')
+        self.conv11 = nn.Conv2d(int(n_features/2), 256, kernel_size=1, padding='same')
         ## Branch 2 (1 in total)
         self.conv21 = nn.Conv2d(n_features, 256, kernel_size=1, padding='same')
         ## Branch 3 (3 in total)
@@ -719,6 +735,7 @@ class ReductionA(nn.Module):
 
     def __init__(self, n_features:int):
         """Init the class."""
+        super(ReductionA, self).__init__()
         # Convolutions
         ## Branch 1 (0 in total)
         ## Branch 2 (1 in total)
@@ -761,6 +778,7 @@ class ReductionB(nn.Module):
 
     def __init__(self, n_features:int):
         """Init the class."""
+        super(ReductionB, self).__init__()
         # Convolutions
         ## Branch 1 (0 in total)
         ## Branch 2 (2 in total)
