@@ -418,23 +418,23 @@ class InceptionStem(nn.Module):
         # Convolutions
         self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding='valid')
         self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding='valid')
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding='same')
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=0)
         ## Split 1
         ### Branch 1 (0 Convolutions in total)
         ### Branch 2 (1 Convolutions in total)
         self.conv121 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding='valid')
         ## Split 2
         ### Branch 1 (2 Convolutions in total)
-        self.conv211 = nn.Conv2d(160, 64, kernel_size=1, padding='same')
-        self.conv212 = nn.Conv2d(64, 96, kernel_size=3, padding='valid')
+        self.conv211 = nn.Conv2d(128, 64, kernel_size=3, padding=0)
+        self.conv212 = nn.Conv2d(64, 96, kernel_size=7, padding='valid')
         ### Branch 2 (4 Convolutions in total)
-        self.conv221 = nn.Conv2d(160, 64, kernel_size=1, padding='same')
-        self.conv222 = nn.Conv2d(64, 64, kernel_size=(7,1), padding='same')
-        self.conv223 = nn.Conv2d(64, 64, kernel_size=(1,7), padding='same')
+        self.conv221 = nn.Conv2d(128, 64, kernel_size=1, padding=0)
+        self.conv222 = nn.Conv2d(64, 64, kernel_size=(7,1), padding=0)
+        self.conv223 = nn.Conv2d(64, 64, kernel_size=(1,7), padding=0)
         self.conv224 = nn.Conv2d(64, 96, kernel_size=3, padding='valid')
         ## Split 3
         ### Branch 1 (1 Convolutions in total)
-        self.conv311 = nn.Conv2d(192, 192, kernel_size=3, padding='valid')
+        self.conv311 = nn.Conv2d(192, 192, kernel_size=3, stride=2, padding='valid')
         ###Branch 2 (0 Convolutions in total)
 
         # Batch Normalizations
@@ -443,6 +443,7 @@ class InceptionStem(nn.Module):
         self.bn3 = nn.BatchNorm2d(64)
         self.bn121 = nn.BatchNorm2d(64)
         self.bn211 = nn.BatchNorm2d(64)
+        self.bn212 = nn.BatchNorm2d(96)
         self.bn221 = nn.BatchNorm2d(64)
         self.bn222 = nn.BatchNorm2d(64)
         self.bn223 = nn.BatchNorm2d(64)
@@ -451,7 +452,7 @@ class InceptionStem(nn.Module):
 
         # Repeatable Layers
         self.relu = nn.ReLU()
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding='valid')
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0)
 
     def forward(self, x):
         """Forward loop of the model."""
@@ -516,16 +517,16 @@ class InceptionA(nn.Module):
 
         # Convolutions
         ## Branch 1 (1 in total)
-        self.conv11 = nn.Conv2d(n_features, 96, kernel_size=1, padding='same')
+        self.conv11 = nn.Conv2d(n_features, 96, kernel_size=1, padding=0)
         ## Branch 2 (1 in total)
-        self.conv21 = nn.Conv2d(n_features, 96, kernel_size=1, padding='same')
+        self.conv21 = nn.Conv2d(n_features, 96, kernel_size=3, stride=2, padding=0)
         ## Branch 3 (2 in total)
-        self.conv31 = nn.Conv2d(n_features, 64, kernel_size=1, padding='same')
-        self.conv32 = nn.Conv2d(64, 96, kernel_size=3, padding='same')
+        self.conv31 = nn.Conv2d(n_features, 64, kernel_size=1, padding=0)
+        self.conv32 = nn.Conv2d(64, 96, kernel_size=3, stride=2, padding=0)
         ## Branch 4 (3 in total)
-        self.conv41 = nn.Conv2d(n_features, 64, kernel_size=1, padding='same')
-        self.conv42 = nn.Conv2d(64, 96, kernel_size=3, padding='same')
-        self.conv43 = nn.Conv2d(96, 96, kernel_size=3, padding='same')
+        self.conv41 = nn.Conv2d(n_features, 64, kernel_size=1, padding=0)
+        self.conv42 = nn.Conv2d(64, 96, kernel_size=1, padding=0)
+        self.conv43 = nn.Conv2d(96, 96, kernel_size=3, stride=2, padding=0)
 
         # Batch Normalizations
         self.bn11 = nn.BatchNorm2d(96)
@@ -537,7 +538,7 @@ class InceptionA(nn.Module):
         self.bn43 = nn.BatchNorm2d(96)
 
         # Repeatable Layers
-        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2)
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2, padding=0)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -580,19 +581,19 @@ class InceptionB(nn.Module):
         super(InceptionB, self).__init__()
         # Convolutions
         ## Branch 1 (1 in total)
-        self.conv11 = nn.Conv2d(n_features, 128, kernel_size=1, padding='same')
+        self.conv11 = nn.Conv2d(n_features, 128, kernel_size=1, padding=0)
         ## Branch 2 (1 in total)
-        self.conv21 = nn.Conv2d(n_features, 384, kernel_size=1, padding='same')
+        self.conv21 = nn.Conv2d(n_features, 384, kernel_size=1, padding=0)
         ## Branch 3 (3 in total)
-        self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
-        self.conv32 = nn.Conv2d(192, 224, kernel_size=(1,7), padding='same')
-        self.conv33 = nn.Conv2d(224, 256, kernel_size=(1,7), padding='same')
+        self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
+        self.conv32 = nn.Conv2d(192, 224, kernel_size=(1,7), padding=0)
+        self.conv33 = nn.Conv2d(224, 256, kernel_size=(1,7), padding=(0,6))
         ## Branch 4 (5 in total)
-        self.conv41 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
-        self.conv42 = nn.Conv2d(192, 192, kernel_size=(1,7), padding='same')
-        self.conv43 = nn.Conv2d(192, 224, kernel_size=(7,1), padding='same')
-        self.conv44 = nn.Conv2d(224, 224, kernel_size=(1,7), padding='same')
-        self.conv45 = nn.Conv2d(224, 256, kernel_size=(7,1), padding='same')
+        self.conv41 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
+        self.conv42 = nn.Conv2d(192, 192, kernel_size=(1,7), padding=(0,0))
+        self.conv43 = nn.Conv2d(192, 224, kernel_size=(7,1), padding=(0,0))
+        self.conv44 = nn.Conv2d(224, 224, kernel_size=(1,7), padding=(0,6))
+        self.conv45 = nn.Conv2d(224, 256, kernel_size=(7,1), padding=(6,0))
 
         # Batch Normalizations
         self.bn11 = nn.BatchNorm2d(128)
@@ -607,7 +608,7 @@ class InceptionB(nn.Module):
         self.bn45 = nn.BatchNorm2d(256)
 
         # Repeatable Layers
-        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2)
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=1, padding=1)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -659,19 +660,19 @@ class InceptionC(nn.Module):
         super(InceptionC, self).__init__()
         # Convolutions
         ## Branch 1 (1 in total)
-        self.conv11 = nn.Conv2d(int(n_features/2), 256, kernel_size=1, padding='same')
+        self.conv11 = nn.Conv2d(n_features, 256, kernel_size=1, padding=0)
         ## Branch 2 (1 in total)
-        self.conv21 = nn.Conv2d(n_features, 256, kernel_size=1, padding='same')
+        self.conv21 = nn.Conv2d(n_features, 256, kernel_size=1, stride=2, padding=0)
         ## Branch 3 (3 in total)
-        self.conv31 = nn.Conv2d(n_features, 384, kernel_size=1, padding='same')
-        self.conv32l = nn.Conv2d(384, 256, kernel_size=(1,3), padding='same')
-        self.conv32r = nn.Conv2d(384, 256, kernel_size=(3,1), padding='same')
+        self.conv31 = nn.Conv2d(n_features, 384, kernel_size=1, padding=0)
+        self.conv32l = nn.Conv2d(384, 256, kernel_size=(1,3), stride=2, padding=(0,1))
+        self.conv32r = nn.Conv2d(384, 256, kernel_size=(3,1), stride=2, padding=(1,0))
         ## Branch 4 (5 in total)
-        self.conv41 = nn.Conv2d(n_features, 384, kernel_size=1, padding='same')
-        self.conv42 = nn.Conv2d(384, 448, kernel_size=(1,3), padding='same')
-        self.conv43 = nn.Conv2d(448, 512, kernel_size=(3,1), padding='same')
-        self.conv44l = nn.Conv2d(512, 256, kernel_size=(3,1), padding='same')
-        self.conv44r = nn.Conv2d(512, 256, kernel_size=(1,3), padding='same')
+        self.conv41 = nn.Conv2d(n_features, 384, kernel_size=1, padding=0)
+        self.conv42 = nn.Conv2d(384, 448, kernel_size=(1,3), padding=0)
+        self.conv43 = nn.Conv2d(448, 512, kernel_size=(3,1), padding=0)
+        self.conv44l = nn.Conv2d(512, 256, kernel_size=(3,1), stride=2, padding=(2,1))
+        self.conv44r = nn.Conv2d(512, 256, kernel_size=(1,3), stride=2, padding=(1,2))
 
         # Batch Normalizations
         self.bn11 = nn.BatchNorm2d(256)
@@ -686,7 +687,7 @@ class InceptionC(nn.Module):
         self.bn44r = nn.BatchNorm2d(256)
 
         # Repeatable Layers
-        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2)
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2, padding=1)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -741,8 +742,8 @@ class ReductionA(nn.Module):
         ## Branch 2 (1 in total)
         self.conv21 = nn.Conv2d(n_features, 384, kernel_size=3, stride=2, padding='valid')
         ## Branch 3 (3 in total)
-        self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
-        self.conv32 = nn.Conv2d(192, 224, kernel_size=3, padding='same')
+        self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
+        self.conv32 = nn.Conv2d(192, 224, kernel_size=1, padding=0)
         self.conv33 = nn.Conv2d(224, 256, kernel_size=3, stride=2, padding='valid')
 
         # Batch Normalizations
@@ -752,7 +753,7 @@ class ReductionA(nn.Module):
         self.bn33 = nn.BatchNorm2d(256)
 
         # Repeatable Layers
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding='valid')
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0)
         self.relu = nn.ReLU()
 
     def forward(self, x):
@@ -771,6 +772,7 @@ class ReductionA(nn.Module):
         x3 = self.bn33(x3)
         x3 = self.relu(x3)
         x = torch.cat((x1, x2, x3), dim=1)
+        return x
 
 
 class ReductionB(nn.Module):
@@ -782,12 +784,12 @@ class ReductionB(nn.Module):
         # Convolutions
         ## Branch 1 (0 in total)
         ## Branch 2 (2 in total)
-        self.conv21 = nn.Conv2d(n_features, 192, kernel_size=1, padding='same')
+        self.conv21 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
         self.conv22 = nn.Conv2d(192, 192, kernel_size=3, stride=2, padding='valid')
         ### Branch 3 (4 in total)
-        self.conv31 = nn.Conv2d(n_features, 256, kernel_size=1, padding='same')
-        self.conv32 = nn.Conv2d(256, 256, kernel_size=(1,7), padding='same')
-        self.conv33 = nn.Conv2d(256, 320, kernel_size=(7, 1), padding='same')
+        self.conv31 = nn.Conv2d(n_features, 256, kernel_size=1, padding=0)
+        self.conv32 = nn.Conv2d(256, 256, kernel_size=(1,7), padding=(0,3))
+        self.conv33 = nn.Conv2d(256, 320, kernel_size=(7, 1), padding=(3,0))
         self.conv34 = nn.Conv2d(320, 320, kernel_size=3, stride=2, padding='valid')
 
         # Batch Normalizations
@@ -800,7 +802,7 @@ class ReductionB(nn.Module):
 
         # Repeatable Layers
         self.relu = nn.ReLU()
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding='valid')
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=0)
 
     def forward(self, x):
         """Forward pass of the neural network."""
@@ -814,16 +816,58 @@ class ReductionB(nn.Module):
         x3 = self.conv31(x)
         x3 = self.bn31(x3)
         x3 = self.relu(x3)
-        x3 = self.conv32(x)
+        x3 = self.conv32(x3)
         x3 = self.bn32(x3)
         x3 = self.relu(x3)
-        x3 = self.conv33(x)
+        x3 = self.conv33(x3)
         x3 = self.bn33(x3)
         x3 = self.relu(x3)
-        x3 = self.conv34(x)
+        x3 = self.conv34(x3)
         x3 = self.bn34(x3)
         x3 = self.relu(x3)
         x = torch.cat((x1, x2, x3), dim=1)
+        return x
+
+
+class InceptionV4(nn.Module):
+    """The Completed Inception Model."""
+
+    def __init__(self,n_classes:int):
+        """Init the class."""
+        super(InceptionV4, self).__init__()
+        self.stem = InceptionStem(3)
+        self.ia = InceptionA(384)
+        self.ra = ReductionA(384)
+        self.ib = InceptionB(1024)
+        self.rb = ReductionB(1024)
+        self.ic = InceptionC(1536)
+        self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2, padding=0)
+        self.flatten = nn.Flatten()
+        self.dropout = nn.Dropout(0.8)
+        self.linear1 = nn.Linear(1536, 1000)
+        self.linear2 = nn.Linear(1000, 500)
+        self.linear3 = nn.Linear(500, 250)
+        self.linear4 = nn.Linear(250, 100)
+        self.linear5 = nn.Linear(100, n_classes)
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        """Forward pass of network."""
+        x = self.stem(x)
+        x = self.ia(x)
+        x = self.ra(x)
+        x = self.ib(x)
+        x = self.rb(x)
+        x = self.ic(x)
+        x = self.avgpool(x)
+        x = self.flatten(x)
+        x = self.dropout(x)
+        x = self.linear1(x)
+        x = self.linear2(x)
+        x = self.linear3(x)
+        x = self.linear4(x)
+        x = self.linear5(x)
+        x = self.softmax(x)
         return x
 
 
