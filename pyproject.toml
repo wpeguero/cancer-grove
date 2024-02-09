@@ -22,3 +22,6 @@ authors = [
 ]
 readme = "README.md"
 license = {file = "LICENSE.md"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
