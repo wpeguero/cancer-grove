@@ -843,13 +843,16 @@ class InceptionV4(nn.Module):
         self.ic = InceptionC(1536)
         self.avgpool = nn.AvgPool2d(kernel_size=3, stride=2, padding=0)
         self.flatten = nn.Flatten()
-        self.dropout = nn.Dropout(0.8)
         self.linear1 = nn.Linear(1536, 1000)
         self.linear2 = nn.Linear(1000, 500)
         self.linear3 = nn.Linear(500, 250)
         self.linear4 = nn.Linear(250, 100)
         self.linear5 = nn.Linear(100, n_classes)
         self.softmax = nn.Softmax(dim=1)
+
+        # Repeatable layer(s)
+        self.dropout = nn.Dropout(0.8)
+        self.relu = nn.ReLU()
 
     def forward(self, x):
         """Forward pass of network."""
@@ -863,9 +866,13 @@ class InceptionV4(nn.Module):
         x = self.flatten(x)
         x = self.dropout(x)
         x = self.linear1(x)
+        x = self.relu(x)
         x = self.linear2(x)
+        x = self.relu(x)
         x = self.linear3(x)
+        x = self.relu(x)
         x = self.linear4(x)
+        x = self.relu(x)
         x = self.linear5(x)
         x = self.softmax(x)
         return x
