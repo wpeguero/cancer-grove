@@ -23,7 +23,7 @@ from torch import optim, nn
 from torch.utils import data
 from torchvision import datasets, transforms
 
-from models import CustomCNN, AlexNet
+from models import CustomCNN, AlexNet, InceptionStem, InceptionA, InceptionB, InceptionC, ReductionA, ReductionB, InceptionV4
 from trainers import TrainModel, VERSION
 import models
 
@@ -49,9 +49,22 @@ def _main():
     dloader = data.DataLoader(dset, shuffle=True, batch_size=16, num_workers=4)
     testloader = data.DataLoader(testset, shuffle=True, batch_size=16, num_workers=4)
     #model = TutorialNet(3, 4)
-    model = CustomCNN(3, 4)
+    #model = CustomCNN(3, 4)
     #model = AlexNet(3, 4)
-    opt = optim.SGD(model.parameters(), lr=0.005, weight_decay=0.005, momentum=0.9)
+    model = InceptionV4(4)
+    #model = nn.Sequential(
+    #        InceptionStem(3),
+    #        InceptionA(384),
+    #        ReductionA(384),
+    #        InceptionB(1024),
+    #        ReductionB(1024),
+    #        InceptionC(1536),
+    #        nn.AvgPool2d(kernel_size=3, stride=2, padding=1),
+    #        nn.Flatten(),
+    #        nn.Dropout(0.8),
+    #        nn.Softmax(4)
+    #        )
+    opt = optim.SGD(model.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
     loss = nn.CrossEntropyLoss()
     # Sample image for the sake of testing
     #img = Image.open("data/Chest_CT_Scans/test/squamous.cell.carcinoma/000129 (6).png")
