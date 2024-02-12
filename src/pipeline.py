@@ -91,6 +91,11 @@ def _main():
     #fig.show()
 
 
+def _main2():
+    """Test Pipeline."""
+    root = "data/LIDC-IDRI-Dataset/"
+
+
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
     """Convert the string column to categorical column.
 
@@ -135,72 +140,36 @@ def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
         exit()
     return df
 
-def _get_list_of_files(root:str) -> pl.DataFrame:
-    """Get the list of files within given directory."""
-    p = pathlib.Path(root).glob('**/*')
-    files = [x for x in p if x.is_file()]
-    data = list()
-    for file in files:
-        parts = str(file).split('/')
-        data.append({'dirname':parts[-2], 'path':str(file)})
-    df = pl.DataFrame(data)
-    return df
+def get_file_paths(root:str, filename:str=None) -> list[str]:
+    """Get the path to all files within a folder.
 
-def _rename_folders(filepath:str):
-    df__dicom_info = pl.read_csv(fn__dicom_info)
-    root_path = 'data/CBIS/jpeg/'
-    list__folders = list() # Contains the new path of the renamed folders that contain images.
-    for row in df__dicom_info.iter_rows(named=True):
-        original_path = str(row['image_path']).split('/')
-        folder_path = os.path.join(root_path, original_path[2])
-        new_path = f'{root_path}{row["PatientID"]}'
-        if (os.path.exists(new_path)) and (os.path.exists(folder_path)):
-            files = os.listdir(folder_path)
-            for file in files:
-                os.replace(os.path.join(folder_path, file), os.path.join(new_path, file))
-        elif (os.path.exists(folder_path) == True) and (os.path.exists(new_path) == False):
-            os.rename(folder_path, new_path)
-        else:
-            pass
-        list__folders.append({'PatientID':row['PatientID'], 'new_path':os.path.join(root_path, row['PatientID'])})
-    df__paths = pl.DataFrame(list__folders)
-    df__paths.write_csv('data/CBIS/csv/image_paths.csv')
+    Search through a root directory to extract the path of all files
+    and extract the file path of the file regardless of the depth of
+    the file within the directory.
 
-def _extract_feature_definitions(filepath:str, savepath:str, l:int):
-    df = pl.read_csv(filepath)
-    features = df.iloc[:l]
-    feats = features.fillna("blank")
-    with open(savepath, 'w') as fp:
-        json.dump(feats, fp)
-        fp.close()
+    Parameters
+    ----------
+    root : String
+        The root to the file directory.
+    filename : String
+        Name of the file containing the list of files within the
+        root path. Stated to be None if not desired.
 
-def _remove_first_row(filepath:str, nfilepath:str):
-    xls = pl.ExcelFile(filepath, engine='xlrd')
-    df = pl.read_excel(xls, 0)
-    df.to_csv(filepath, index=False)
-    with open(filepath, 'r') as file:
-        data = file.read()
-    new_data = data.split('\n', 1)[-1]
-    with open(nfilepath, 'w') as fp:
-        fp.write(new_data)
-
-def _convert_dicom_to_png(filename:str) -> None:
-    """Convert a list of dicom files into their png forms.
-
-    ...
+    Returns
+    -------
+    List
+        Contains the full (relative) path to the files within the
+        root directory.
     """
-    df = pl.read_csv(filename)
-    for _, row in df.iterrows():
-        ds = dcmread(row['paths'])
-        path = pathlib.PurePath(row['paths'])
-        dicom_name = path.name
-        name = dicom_name.replace(".dcm", "")
-        new_image = ds.pixel_array.astype(float)
-        scaled_image = (np.maximum(new_image, 0) / new_image.max()) * 255
-        scaled_image = np.uint8(scaled_image)
-        final_image = Image.fromarray(scaled_image)
-        final_image.save(f"data/CMMD-set/classifying_set/raw_png/{row['Subject ID'] + '_' + name + ds.ImageLaterality}.png")
-    return None
+    all_files = list()
+    for path, subdirs, files in os.walk(root):
+        for name in files:
+            all_files.append(os.path.join(path, name, '\n'))
+    if filename != None:
+        with open(filename, 'w') as fp:
+            fp.writelines(all_files)
+            fp.close()
+    return all_files
 
 def gather_segmentation_images(filename:str, paths:str, id:str):
     """Get all of the Images with Segmentations.
@@ -722,4 +691,5 @@ def get_activation(name):
 
 
 if __name__ == "__main__":
-    _main()
+    #_main()
+    afiles = get_file_paths(root="data/LIDC-IDRI-Dataset/", filename="data/results.txt")
