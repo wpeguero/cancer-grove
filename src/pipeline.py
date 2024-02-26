@@ -36,6 +36,10 @@ def _main():
     fn__images = "data/Chest_CT_Scans/train/"
     fn__test_images = "data/Chest_CT_Scans/test/"
     classes = ('adenocarcinoma', 'large.cell.carcinoma', 'normal', 'squamous.cell.carcinoma')
+    # Dataset for training lung cancer
+    root = "data/LIDC-IDRI-Dataset/"
+    df = extract_metadata(root, cols['PatientID','InstanceNumber','Rows','Columns','LastMenstrualDate','Modality','AcquisitionDate'])
+    df.write_csv("data/LIDC-IDRI-Dataset/dicom_data.csv")
     #fn__images = "data/cat_loaf_set/"
     img_transforms = transforms.Compose([
         transforms.Resize(img_size),
@@ -77,13 +81,6 @@ def _main():
     #    output = model.conv1(img.to('cuda').unsqueeze(0))
     #fig = px.imshow(output.to('cpu')[0], facet_col=0, facet_col_wrap=5)
     #fig.show()
-
-
-def _main2():
-    """Test Pipeline."""
-    root = "data/LIDC-IDRI-Dataset/"
-    df = extract_metadata(root, cols['PatientID','InstanceNumber','Rows','Columns','LastMenstrualDate','Modality','AcquisitionDate'])
-    df.write_csv("data/LIDC-IDRI-Dataset/dicom_data.csv")
 
 
 def extract_metadata(root:str, cols:list=[]):
@@ -432,5 +429,4 @@ def get_activation(name):
 
 
 if __name__ == "__main__":
-    #_main()
-    _main2()
+    _main()
