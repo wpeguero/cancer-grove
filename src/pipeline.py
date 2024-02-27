@@ -33,55 +33,56 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    fn__images = "data/Chest_CT_Scans/train/"
-    fn__test_images = "data/Chest_CT_Scans/test/"
-    classes = ('adenocarcinoma', 'large.cell.carcinoma', 'normal', 'squamous.cell.carcinoma')
-    # Dataset for training lung cancer
-    root = "data/LIDC-IDRI-Dataset/"
-    df = extract_metadata(root, cols['PatientID','InstanceNumber','Rows','Columns','LastMenstrualDate','Modality','AcquisitionDate'])
-    df.write_csv("data/LIDC-IDRI-Dataset/dicom_data.csv")
-    #fn__images = "data/cat_loaf_set/"
-    img_transforms = transforms.Compose([
-        transforms.Resize(img_size),
-        transforms.Grayscale(num_output_channels=3),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
-        ])
-    target_transform = transforms.Lambda(lambda y: torch.zeros(4, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=1))
-    dset = datasets.ImageFolder(fn__images, transform=img_transforms, target_transform=target_transform)
-    testset = datasets.ImageFolder(fn__test_images, transform=img_transforms, target_transform=target_transform)
-    dloader = data.DataLoader(dset, shuffle=True, batch_size=16, num_workers=4)
-    testloader = data.DataLoader(testset, shuffle=True, batch_size=16, num_workers=4)
-    #model = TutorialNet(3, 4)
-    #model = CustomCNN(3, 4)
-    #model = AlexNet(3, 4)
-    model = InceptionV4(4)
-    opt = optim.SGD(model.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
-    loss = nn.CrossEntropyLoss()
-    # Sample image for the sake of testing
-    #img = Image.open("data/Chest_CT_Scans/test/squamous.cell.carcinoma/000129 (6).png")
-    #print(img)
-    #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
-    #model(img.unsqueeze(0))
-    trainer = TrainModel(model, opt, loss)
-    trainer.train(dloader, 100, gpu=True)
-    trainer.test(testloader, classes, gpu=True, version=VERSION)
-    model = trainer.get_model()
-    torch.save(model.state_dict(), 'models/{}_model_{}.pt'.format(model.__class__.__name__, VERSION))
-    with open('src/model_version.txt', 'r+') as fp:
-        cv = int(fp.read())
-        nv = cv + 1
-        fp.seek(0)
-        fp.truncate()
-        fp.write(str(nv))
-        fp.close()
-    #img = img_transforms(img)
-    #model.register_forward_hook(get_activation('conv1'))
-    #with torch.no_grad():
-    #    output = model.conv1(img.to('cuda').unsqueeze(0))
-    #fig = px.imshow(output.to('cpu')[0], facet_col=0, facet_col_wrap=5)
-    #fig.show()
+    pass
 
+
+def update_version(filename:str, new_model:bool=False):
+    """Save the model version and update it.
+
+    Parameters
+    ----------
+    filename : str
+        path to file containing the version.
+    """
+    if new_model == True:
+        with open(filename, 'r+') as fp:
+            cv = int(fp.read())
+            nv = cv + 1
+            fp.seek(0)
+            fp.truncate()
+            fp.write(str(nv))
+            fp.close()
+    else:
+        with open(filename, 'r+') as fp:
+            cv = int(fp.read())
+            nv = 1
+            fp.seek(0)
+            fp.truncate()
+            fp.write(str(nv))
+            fp.close()
+
+def create_target_transform(n_class:int, val:int=1):
+    """Create the transformation function for the label data.
+
+    Uses the pytorch Lambda transform to recreate lable data as a
+    vector with the length equal to the number of classes. This will
+    allow one to use the transform for any situation and dataset
+    class that one may use.
+
+    Parameters
+    ----------
+    n_class : int
+        The number of classes.
+    val : int
+        The default value for the classes.
+
+    Returns
+    -------
+    pytorch Transform
+        The transform function for the label data.
+    """
+    target_transform = transforms.Lambda(lambda y: torch.zeros(n_class, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=val))
+    return target_transform
 
 def extract_metadata(root:str, cols:list=[]):
     """Extract the metadata from the DICOM FILE.
