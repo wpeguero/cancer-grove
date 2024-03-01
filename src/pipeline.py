@@ -33,8 +33,48 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    pass
+    cbis__root = "data/CBIS-DDSM-SET/"
+    dicom_paths = "data/CBIS-DDSM-SET/dicom_paths.csv"
+    df = add_label_from_path(root=dicom_paths, search_labels={"ROI mask":"mask", "cropped images":"crop", "full mammogram":"image"})
+    df.write_csv("data/CBIS-DDSM-SET/dicom_paths_with_types.csv")
 
+
+def add_label_from_path(root:str, search_labels:dict[str]) -> pl.DataFrame:
+    """Add a label based on terms within paths.
+
+    Loads a csv file and searches for specific terms found as keys
+    within the dictionary and labels them based on the value associated
+    with the key. This label is added to a column named image type.
+
+    Parameters
+    ----------
+    root : String
+        The file containing the list of paths to be searched on. This
+        will be loaded as a polars DataFrame.
+    search_labels : Dictionary [String]
+        Contains key:value pairs that are meant to be the search term
+        and the label respectively.
+
+    Returns
+    -------
+    Polars DataFrame
+        Modified DataFrame containing the labeled paths.
+    """
+    assert ".csv" in root, TypeError("File is not in CSV format.")
+    df = pl.read_csv(root)
+    mod_data = list()
+    for row in df.iter_rows(named=True):
+        for term, label in search_labels.items():
+            path = row['path']
+            lpath = path.lower()
+            lterm = term.lower()
+            if lterm in lpath:
+                mod_data.append({"path":path, "type":label})
+            else:
+                pass
+    df_new = pl.DataFrame(mod_data)
+    df_merged = df.join(df_new,on="path", how="inner")
+    return df_merged
 
 def update_version(filename:str, new_model:bool=False):
     """Save the model version and update it.
@@ -86,6 +126,10 @@ def create_target_transform(n_class:int, val:int=1):
 
 def extract_metadata(root:str, cols:list=[]):
     """Extract the metadata from the DICOM FILE.
+
+    Extracts the data from DICOM files based on the list of labels
+    written, collects the paths of all files from the directory and
+    places the data within a Polars DataFrame.
 
     Parameters
     ----------
