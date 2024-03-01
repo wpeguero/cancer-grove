@@ -3,6 +3,8 @@ import os
 
 from torch.utils import data
 import polars as pl
+from pydicom import dcmread
+import numpy as np
 
 
 def _main():
@@ -93,13 +95,61 @@ class MixedDataset(data.Dataset):
 class DICOMSet(data.Dataset):
     """Dataset used to load and extract information from DICOM images.
 
-    This custom dataset extracts the image from the DICOM file in
-    conjunction with the selected values found within the DICOM file.
-    The data is then brought together to create a singular datapoint
-    to be used in training a machine learning model with mixed input.
+    Loads image from the dicom files and adds a label associated with
+    said image path.
+
+    Parameters
+    ----------
+    csvfile : String or Polars DataFrame
+        File or path to file containing the path to the image and the
+        categorical data.
+    label_col : String
+        The column containing the labels for the classifier.
+    img_col : String
+        The column containing the path to the dicom file.
     """
 
-    pass
+    def __init__(self, csvfile:str|pl.DataFrame, label_col:str,img_col:str="path", image_loader=None, image_transforms=None, categorical_transforms=None):
+        """Init the Class."""
+        assert (type(csvfile) == str) | (type(csvfile) == pl.DataFrame), TypeError("csvfile is not of the correct type, the current type is {}".format(type(csvfile)))
+        if type(csvfile) == str:
+            self.csv = pl.read_csv(csvfile)
+        else:
+            self.csv = csvfile
+        self.lcol = label_col
+        self.pcol = img_col
+        self.loader = image_loader
+        self.img_transforms = image_transforms
+        self.cat_transforms = categorical_transforms
+
+    def __len__(self):
+        """Calculate the length of the dataset."""
+        return self.csv.select(pl.count()).item()
+
+    def __getitem__(self, index):
+        """Get the datapoint."""
+        if torch.is_tensor(index):
+            index.tolist()
+        dicom_file = dcmread(self.csvfile.select(self.pcol).row(index)[0])
+        img = self.extract_image(dicom_file)
+        cat = self.csvfile.select(self.lcol).row(index)[0]
+        if self.img_transforms:
+            img = self.img_transforms(img)
+        if self.cat_transforms:
+            cat = self.cat_transforms(cat)
+        sample = {'image': img, 'labels': cat}
+        return sample
+
+    @staticmethod
+    def extract_image(dicom_file):
+        """Extract image from the DICOM File."""
+        slices = np.asarray(dicom_file.pixel_array).astype('float32')
+        if slices.ndim <= 2:
+            pass
+        elif slices.ndim > 3:
+            slice = slices[0]
+        slice = slice[..., np.newaxis]
+        return slice
 
 
 if __name__ == "__main__":
