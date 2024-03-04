@@ -33,11 +33,55 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    cbis__root = "data/CBIS-DDSM-SET/"
-    dicom_paths = "data/CBIS-DDSM-SET/dicom_paths.csv"
-    df = add_label_from_path(root=dicom_paths, search_labels={"ROI mask":"mask", "cropped images":"crop", "full mammogram":"image"})
-    df.write_csv("data/CBIS-DDSM-SET/dicom_paths_with_types.csv")
+    fn__mass_training = "data/CBIS-DDSM-SET/mass_case_description_train_set.csv"
+    fn__calc_training = "data/CBIS-DDSM-SET/calc_case_description_train_set.csv"
+    fn__mass_test = "data/CBIS-DDSM-SET/mass_case_description_test_set.csv"
+    fn__calc_test = "data/CBIS-DDSM-SET/calc_case_description_test_set.csv"
+    df__mass_training = pl.read_csv(fn__mass_training)
+    df__mass_training = df__mass_training.with_columns(("Mass-Training_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
+    df__mass_test = pl.read_csv(fn__mass_test)
+    df__mass_test = df__mass_test.with_columns(("Mass-Test_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
+    df__calc_training = pl.read_csv(fn__calc_training)
+    df__calc_training = df__calc_training.with_columns(("Calc-Training_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
+    df__calc_testing = pl.read_csv(fn__calc_test)
+    df__calc_testing = df__calc_testing.with_columns(("Calc-Test_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
+    # Rename all columns for al ldata sets
+    df__mass_training = change_column_names(df__mass_training)
+    df__mass_test = change_column_names(df__mass_test)
+    df__calc_training = change_column_names(df__calc_training)
+    df__calc_testing = change_column_names(df__calc_testing)
+    df__training = pl.concat([df__mass_training, df__calc_training], how="diagonal")
+    df__training.write_csv("data/CBIS-DDSM-SET/training_description.csv")
+    df__testing = pl.concat([df__mass_test, df__calc_testing], how="diagonal")
+    df__testing.write_csv("data/CBIS-DDSM-SET/test_description.csv")
 
+
+def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
+    """Change the column name by replacing space with underline and decapitalize words.
+
+    Extracts all of the columns, changes all capitalized characters to
+    its lowercase version. The new column names are then used to
+    replace the old column names within the DataFrame.
+
+    Parameters
+    ----------
+    df : Polars DataFrame
+        The DataFrame containing all of the data.
+
+    Returns
+    -------
+    Polars DataFrame
+        The DataFrame with the column name changes.
+    """
+    columns = df.columns
+    col_changes = dict()
+    for col in columns:
+        ncol = col.strip()
+        ncol = col.lower()
+        ncol = col.replace(" ", "_")
+        col_changes[col] = ncol
+    df = df.rename(col_changes)
+    return df
 
 def add_label_from_path(root:str, search_labels:dict[str]) -> pl.DataFrame:
     """Add a label based on terms within paths.
