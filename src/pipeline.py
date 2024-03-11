@@ -34,19 +34,19 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    # Can extract section of folder to get unique id
-    fn__paths = "data/CBIS-DDSM-SET/nudicom_paths_with_types.csv"
+    # Path to base files
+    fn__paths = "data/CBIS-DDSM-SET/nudicom_paths_with_typesv2.csv"
+    fn__training = "data/CBIS-DDSM-SET/training_description.csv"
+    fn__testing = "data/CBIS-DDSM-SET/test_description.csv"
+    # Paths to training dataset
     df__paths = pl.read_csv(fn__paths)
-    dataset = list()
-    for row in df__paths.iter_rows(named=True):
-        datapoint = row.copy()
-        path = row['path']
-        components = path.split('/')
-        unique_id = components[3]
-        datapoint.update({'unique_id':unique_id})
-        dataset.append(datapoint)
-    df = pl.DataFrame(dataset)
-    df.write_csv("data/CBIS-DDSM-SET/nudicom_paths_with_typesv2.csv")
+    df__training = pl.read_csv(fn__training)
+    df__train_set = df__paths.join(df__training, on='patient_id')
+    df__train_set.write_csv('data/CBIS-DDSM-SET/trainset.csv')
+    # Paths to testing dataset
+    df__testing = pl.read_csv(fn__testing)
+    df__test_set = df__paths.join(df__testing, on='patient_id')
+    df__test_set.write_csv('data/CBIS-DDSM-SET/testset.csv')
 
 
 def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
