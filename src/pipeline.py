@@ -34,49 +34,19 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    # Change the unique ID to something that matches the training dataset and testing dataset
-    fn__paths = "data/CBIS-DDSM-SET/dicom_paths_with_types.csv"
+    # Can extract section of folder to get unique id
+    fn__paths = "data/CBIS-DDSM-SET/nudicom_paths_with_types.csv"
     df__paths = pl.read_csv(fn__paths)
-    nudataset = list()
-    # Set of Patterns
-    pattern__patient_id = r"\w\_[0-9]{5}"
-    regex__patient_id = re.compile(pattern__patient_id)
+    dataset = list()
     for row in df__paths.iter_rows(named=True):
-        nudatapoint = row.copy()
-        nudatapoint['patient_id']= re.search(regex__patient_id, row['unique id']).group(0)
-        if nudatapoint['patient_id'] is None:
-            nudatapoint['patient_id'] = ''
-        # Breast side
-        if 'LEFT' in row['unique id']:
-            nudatapoint['left_or_right'] = 'LEFT'
-        elif 'RIGHT' in row['unique id']:
-            nudatapoint['left_or_right'] = 'RIGHT'
-        else:
-            nudatapoint['left_or_right'] = ''
-        # Image Views
-        if 'MLO' in row['unique id']:
-            nudatapoint['image_view'] = 'MLO'
-        elif 'CC' in row['unique id']:
-            nudatapoint['image_view'] = 'CC'
-        else:
-            nudatapoint['image_view'] = ''
-        # Cancer type sample
-        if 'Mass-Training' in row['unique id']:
-            nudatapoint['cancer_type'] = 'Mass-Training'
-        elif 'Mass-Test' in row['unique id']:
-            nudatapoint['cancer_type'] = 'Mass-Test'
-        elif 'Calc-Training' in row['unique id']:
-            nudatapoint['cancer_type'] = 'Calc-Training'
-        elif 'Calc-Test' in row['unique id']:
-            nudatapoint['cancer_type'] = 'Calc-Test'
-        else:
-            nudatapoint['cancer_type'] = ''
-        nudatapoint['unique_id'] = nudatapoint['patient_id'] + '_' + nudatapoint['left_or_right'] + '_' + nudatapoint['image_view']
-        nudataset.append(nudatapoint)
-
-
-    df__nudata = pl.DataFrame(nudataset)
-    df__nudata.write_csv('data/CBIS-DDSM-SET/nudicom_paths_with_types.csv')
+        datapoint = row.copy()
+        path = row['path']
+        components = path.split('/')
+        unique_id = components[3]
+        datapoint.update({'unique_id':unique_id})
+        dataset.append(datapoint)
+    df = pl.DataFrame(dataset)
+    df.write_csv("data/CBIS-DDSM-SET/nudicom_paths_with_typesv2.csv")
 
 
 def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
