@@ -11,6 +11,7 @@ import os
 import pathlib
 import json
 from collections import defaultdict
+import re
 
 import numpy as np
 import plotly.express as px
@@ -33,27 +34,49 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    fn__mass_training = "data/CBIS-DDSM-SET/mass_case_description_train_set.csv"
-    fn__calc_training = "data/CBIS-DDSM-SET/calc_case_description_train_set.csv"
-    fn__mass_test = "data/CBIS-DDSM-SET/mass_case_description_test_set.csv"
-    fn__calc_test = "data/CBIS-DDSM-SET/calc_case_description_test_set.csv"
-    df__mass_training = pl.read_csv(fn__mass_training)
-    df__mass_training = df__mass_training.with_columns(("Mass-Training_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
-    df__mass_test = pl.read_csv(fn__mass_test)
-    df__mass_test = df__mass_test.with_columns(("Mass-Test_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
-    df__calc_training = pl.read_csv(fn__calc_training)
-    df__calc_training = df__calc_training.with_columns(("Calc-Training_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
-    df__calc_testing = pl.read_csv(fn__calc_test)
-    df__calc_testing = df__calc_testing.with_columns(("Calc-Test_" + pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "-" + pl.col("abnormality id").cast(pl.String)).alias("unique id"))
-    # Rename all columns for al ldata sets
-    df__mass_training = change_column_names(df__mass_training)
-    df__mass_test = change_column_names(df__mass_test)
-    df__calc_training = change_column_names(df__calc_training)
-    df__calc_testing = change_column_names(df__calc_testing)
-    df__training = pl.concat([df__mass_training, df__calc_training], how="diagonal")
-    df__training.write_csv("data/CBIS-DDSM-SET/training_description.csv")
-    df__testing = pl.concat([df__mass_test, df__calc_testing], how="diagonal")
-    df__testing.write_csv("data/CBIS-DDSM-SET/test_description.csv")
+    # Change the unique ID to something that matches the training dataset and testing dataset
+    fn__paths = "data/CBIS-DDSM-SET/dicom_paths_with_types.csv"
+    df__paths = pl.read_csv(fn__paths)
+    nudataset = list()
+    # Set of Patterns
+    pattern__patient_id = r"\w\_[0-9]{5}"
+    regex__patient_id = re.compile(pattern__patient_id)
+    for row in df__paths.iter_rows(named=True):
+        nudatapoint = row.copy()
+        nudatapoint['patient_id']= re.search(regex__patient_id, row['unique id']).group(0)
+        if nudatapoint['patient_id'] is None:
+            nudatapoint['patient_id'] = ''
+        # Breast side
+        if 'LEFT' in row['unique id']:
+            nudatapoint['left_or_right'] = 'LEFT'
+        elif 'RIGHT' in row['unique id']:
+            nudatapoint['left_or_right'] = 'RIGHT'
+        else:
+            nudatapoint['left_or_right'] = ''
+        # Image Views
+        if 'MLO' in row['unique id']:
+            nudatapoint['image_view'] = 'MLO'
+        elif 'CC' in row['unique id']:
+            nudatapoint['image_view'] = 'CC'
+        else:
+            nudatapoint['image_view'] = ''
+        # Cancer type sample
+        if 'Mass-Training' in row['unique id']:
+            nudatapoint['cancer_type'] = 'Mass-Training'
+        elif 'Mass-Test' in row['unique id']:
+            nudatapoint['cancer_type'] = 'Mass-Test'
+        elif 'Calc-Training' in row['unique id']:
+            nudatapoint['cancer_type'] = 'Calc-Training'
+        elif 'Calc-Test' in row['unique id']:
+            nudatapoint['cancer_type'] = 'Calc-Test'
+        else:
+            nudatapoint['cancer_type'] = ''
+        nudatapoint['unique_id'] = nudatapoint['patient_id'] + '_' + nudatapoint['left_or_right'] + '_' + nudatapoint['image_view']
+        nudataset.append(nudatapoint)
+
+
+    df__nudata = pl.DataFrame(nudataset)
+    df__nudata.write_csv('data/CBIS-DDSM-SET/nudicom_paths_with_types.csv')
 
 
 def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
