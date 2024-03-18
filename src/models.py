@@ -832,10 +832,10 @@ class ReductionB(nn.Module):
 class InceptionV4(nn.Module):
     """The Completed Inception Model."""
 
-    def __init__(self,n_classes:int):
+    def __init__(self,n_classes:int, n_channels:int):
         """Init the class."""
         super(InceptionV4, self).__init__()
-        self.stem = InceptionStem(3)
+        self.stem = InceptionStem(n_channels)
         self.ia = InceptionA(384)
         self.ra = ReductionA(384)
         self.ib = InceptionB(1024)
