@@ -11,6 +11,7 @@ import os
 import pathlib
 import json
 from collections import defaultdict
+import re
 
 import numpy as np
 import plotly.express as px
@@ -24,6 +25,7 @@ from torch.utils import data
 from torchvision import datasets, transforms
 
 from models import CustomCNN, AlexNet, InceptionStem, InceptionA, InceptionB, InceptionC, ReductionA, ReductionB, InceptionV4
+from datasets import DICOMSet
 from trainers import TrainModel, VERSION
 import models
 
@@ -33,63 +35,183 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    fn__images = "data/Chest_CT_Scans/train/"
-    fn__test_images = "data/Chest_CT_Scans/test/"
-    classes = ('adenocarcinoma', 'large.cell.carcinoma', 'normal', 'squamous.cell.carcinoma')
-    #fn__images = "data/cat_loaf_set/"
+    # Training Set
+    fn__train = "data/CBIS-DDSM-SET/trainset.csv"
+    # Clean the Data
+    df__train = pl.read_csv(fn__train)
+    df__images = df__train.filter(pl.col("type") == 'image')
+    df__images = df__images.with_columns(pl.col('pathology').cast(pl.Categorical))
+    list__categories = df__images.unique(subset=['pathology']).get_column('pathology').to_list()
+    labels = {label:i for i, label in enumerate(list__categories)}
+    inverted_labels = {v:k for k, v in labels.items()}
+    df__images = df__images.with_columns(pl.col('pathology').replace(labels, default=None))
+    # Create the Transforms for the Datasets
     img_transforms = transforms.Compose([
-        transforms.Resize(img_size),
-        transforms.Grayscale(num_output_channels=3),
         transforms.ToTensor(),
-        transforms.Normalize([0.5, 0.5, 0.5], [0.5, 0.5, 0.5])
+        transforms.Resize(img_size, antialias=True),
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Normalize((0.5), (0.5))
         ])
-    target_transform = transforms.Lambda(lambda y: torch.zeros(4, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=1))
-    dset = datasets.ImageFolder(fn__images, transform=img_transforms, target_transform=target_transform)
-    testset = datasets.ImageFolder(fn__test_images, transform=img_transforms, target_transform=target_transform)
-    dloader = data.DataLoader(dset, shuffle=True, batch_size=16, num_workers=4)
-    testloader = data.DataLoader(testset, shuffle=True, batch_size=16, num_workers=4)
-    #model = TutorialNet(3, 4)
-    #model = CustomCNN(3, 4)
-    #model = AlexNet(3, 4)
-    model = InceptionV4(4)
-    #model = nn.Sequential(
-    #        InceptionStem(3),
-    #        InceptionA(384),
-    #        ReductionA(384),
-    #        InceptionB(1024),
-    #        ReductionB(1024),
-    #        InceptionC(1536),
-    #        nn.AvgPool2d(kernel_size=3, stride=2, padding=1),
-    #        nn.Flatten(),
-    #        nn.Dropout(0.8),
-    #        nn.Softmax(4)
-    #        )
+    target_transform = transforms.Compose([
+        create_target_transform(3),
+        ])
+    dataset__dicom = DICOMSet(df__images, label_col='pathology', img_col='path', image_transforms=img_transforms, categorical_transforms=target_transform)
+    dataloader__dicom = data.DataLoader(dataset__dicom, shuffle=True, batch_size=64, num_workers=4)
+    model = InceptionV4(3, 1)
     opt = optim.SGD(model.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
     loss = nn.CrossEntropyLoss()
-    # Sample image for the sake of testing
-    #img = Image.open("data/Chest_CT_Scans/test/squamous.cell.carcinoma/000129 (6).png")
-    #print(img)
-    #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
-    #model(img.unsqueeze(0))
     trainer = TrainModel(model, opt, loss)
-    trainer.train(dloader, 100, gpu=True)
-    trainer.test(testloader, classes, gpu=True, version=VERSION)
-    model = trainer.get_model()
-    torch.save(model.state_dict(), 'models/{}_model_{}.pt'.format(model.__class__.__name__, VERSION))
-    with open('src/model_version.txt', 'r+') as fp:
-        cv = int(fp.read())
-        nv = cv + 1
-        fp.seek(0)
-        fp.truncate()
-        fp.write(str(nv))
-        fp.close()
-    #img = img_transforms(img)
-    #model.register_forward_hook(get_activation('conv1'))
-    #with torch.no_grad():
-    #    output = model.conv1(img.to('cuda').unsqueeze(0))
-    #fig = px.imshow(output.to('cpu')[0], facet_col=0, facet_col_wrap=5)
-    #fig.show()
+    trainer.train(dataloader__dicom, 40, gpu=True)
+    new_model = trainer.get_model()
+    torch.save(new_model.state_dict(), "models/cbis_cancer_classifier_v{}.pt".format(2))
 
+
+def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
+    """Change the column name by replacing space with underline and decapitalize words.
+
+    Extracts all of the columns, changes all capitalized characters to
+    its lowercase version. The new column names are then used to
+    replace the old column names within the DataFrame.
+
+    Parameters
+    ----------
+    df : Polars DataFrame
+        The DataFrame containing all of the data.
+
+    Returns
+    -------
+    Polars DataFrame
+        The DataFrame with the column name changes.
+    """
+    columns = df.columns
+    col_changes = dict()
+    for col in columns:
+        ncol = col.strip()
+        ncol = col.lower()
+        ncol = col.replace(" ", "_")
+        col_changes[col] = ncol
+    df = df.rename(col_changes)
+    return df
+
+def add_label_from_path(root:str, search_labels:dict[str]) -> pl.DataFrame:
+    """Add a label based on terms within paths.
+
+    Loads a csv file and searches for specific terms found as keys
+    within the dictionary and labels them based on the value associated
+    with the key. This label is added to a column named image type.
+
+    Parameters
+    ----------
+    root : String
+        The file containing the list of paths to be searched on. This
+        will be loaded as a polars DataFrame.
+    search_labels : Dictionary [String]
+        Contains key:value pairs that are meant to be the search term
+        and the label respectively.
+
+    Returns
+    -------
+    Polars DataFrame
+        Modified DataFrame containing the labeled paths.
+    """
+    assert ".csv" in root, TypeError("File is not in CSV format.")
+    df = pl.read_csv(root)
+    mod_data = list()
+    for row in df.iter_rows(named=True):
+        for term, label in search_labels.items():
+            path = row['path']
+            lpath = path.lower()
+            lterm = term.lower()
+            if lterm in lpath:
+                mod_data.append({"path":path, "type":label})
+            else:
+                pass
+    df_new = pl.DataFrame(mod_data)
+    df_merged = df.join(df_new,on="path", how="inner")
+    return df_merged
+
+def update_version(filename:str, new_model:bool=False):
+    """Save the model version and update it.
+
+    Parameters
+    ----------
+    filename : str
+        path to file containing the version.
+    """
+    if new_model == True:
+        with open(filename, 'r+') as fp:
+            cv = int(fp.read())
+            nv = cv + 1
+            fp.seek(0)
+            fp.truncate()
+            fp.write(str(nv))
+            fp.close()
+    else:
+        with open(filename, 'r+') as fp:
+            cv = int(fp.read())
+            nv = 1
+            fp.seek(0)
+            fp.truncate()
+            fp.write(str(nv))
+            fp.close()
+
+def create_target_transform(n_class:int, val:int=1):
+    """Create the transformation function for the label data.
+
+    Uses the pytorch Lambda transform to recreate lable data as a
+    vector with the length equal to the number of classes. This will
+    allow one to use the transform for any situation and dataset
+    class that one may use.
+
+    Parameters
+    ----------
+    n_class : int
+        The number of classes.
+    val : int
+        The default value for the classes.
+
+    Returns
+    -------
+    pytorch Transform
+        The transform function for the label data.
+    """
+    target_transform = transforms.Lambda(lambda y: torch.zeros(n_class, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=val))
+    return target_transform
+
+def extract_metadata(root:str, cols:list=[]):
+    """Extract the metadata from the DICOM FILE.
+
+    Extracts the data from DICOM files based on the list of labels
+    written, collects the paths of all files from the directory and
+    places the data within a Polars DataFrame.
+
+    Parameters
+    ----------
+    root : str
+        The main directory containing the data
+
+    cols : list
+        list of features found within the dicom file.
+
+    Returns
+    -------
+    Polars DataFrame
+        Dataframe containing all of the desired metadata.
+    """
+    files = get_file_paths(root)
+    dset = list()
+    for file in files:
+        if '.dcm' in file:
+            file = file[:-2]
+            dcimg = dcmread(file)
+            datapoint = { str(col):dcimg[str(col)].value for col in cols }
+            datapoint['unique id'] = str(str(dcimg['PatientID'].value) + '-' + str(dcimg['InstanceNumber'].value))
+            datapoint['path'] = file
+            dset.append(
+                    datapoint
+                    )
+    df = pl.DataFrame(dset)
+    return df
 
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
     """Convert the string column to categorical column.
@@ -135,72 +257,36 @@ def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
         exit()
     return df
 
-def _get_list_of_files(root:str) -> pl.DataFrame:
-    """Get the list of files within given directory."""
-    p = pathlib.Path(root).glob('**/*')
-    files = [x for x in p if x.is_file()]
-    data = list()
-    for file in files:
-        parts = str(file).split('/')
-        data.append({'dirname':parts[-2], 'path':str(file)})
-    df = pl.DataFrame(data)
-    return df
+def get_file_paths(root:str, filename:str=None) -> list[str]:
+    """Get the path to all files within a folder.
 
-def _rename_folders(filepath:str):
-    df__dicom_info = pl.read_csv(fn__dicom_info)
-    root_path = 'data/CBIS/jpeg/'
-    list__folders = list() # Contains the new path of the renamed folders that contain images.
-    for row in df__dicom_info.iter_rows(named=True):
-        original_path = str(row['image_path']).split('/')
-        folder_path = os.path.join(root_path, original_path[2])
-        new_path = f'{root_path}{row["PatientID"]}'
-        if (os.path.exists(new_path)) and (os.path.exists(folder_path)):
-            files = os.listdir(folder_path)
-            for file in files:
-                os.replace(os.path.join(folder_path, file), os.path.join(new_path, file))
-        elif (os.path.exists(folder_path) == True) and (os.path.exists(new_path) == False):
-            os.rename(folder_path, new_path)
-        else:
-            pass
-        list__folders.append({'PatientID':row['PatientID'], 'new_path':os.path.join(root_path, row['PatientID'])})
-    df__paths = pl.DataFrame(list__folders)
-    df__paths.write_csv('data/CBIS/csv/image_paths.csv')
+    Search through a root directory to extract the path of all files
+    and extract the file path of the file regardless of the depth of
+    the file within the directory.
 
-def _extract_feature_definitions(filepath:str, savepath:str, l:int):
-    df = pl.read_csv(filepath)
-    features = df.iloc[:l]
-    feats = features.fillna("blank")
-    with open(savepath, 'w') as fp:
-        json.dump(feats, fp)
-        fp.close()
+    Parameters
+    ----------
+    root : String
+        The root to the file directory.
+    filename : String
+        Name of the file containing the list of files within the
+        root path. Stated to be None if not desired.
 
-def _remove_first_row(filepath:str, nfilepath:str):
-    xls = pl.ExcelFile(filepath, engine='xlrd')
-    df = pl.read_excel(xls, 0)
-    df.to_csv(filepath, index=False)
-    with open(filepath, 'r') as file:
-        data = file.read()
-    new_data = data.split('\n', 1)[-1]
-    with open(nfilepath, 'w') as fp:
-        fp.write(new_data)
-
-def _convert_dicom_to_png(filename:str) -> None:
-    """Convert a list of dicom files into their png forms.
-
-    ...
+    Returns
+    -------
+    List
+        Contains the full (relative) path to the files within the
+        root directory.
     """
-    df = pl.read_csv(filename)
-    for _, row in df.iterrows():
-        ds = dcmread(row['paths'])
-        path = pathlib.PurePath(row['paths'])
-        dicom_name = path.name
-        name = dicom_name.replace(".dcm", "")
-        new_image = ds.pixel_array.astype(float)
-        scaled_image = (np.maximum(new_image, 0) / new_image.max()) * 255
-        scaled_image = np.uint8(scaled_image)
-        final_image = Image.fromarray(scaled_image)
-        final_image.save(f"data/CMMD-set/classifying_set/raw_png/{row['Subject ID'] + '_' + name + ds.ImageLaterality}.png")
-    return None
+    all_files = list()
+    for path, subdirs, files in os.walk(root):
+        for name in files:
+            all_files.append(os.path.join(path, name, '\n'))
+    if filename != None:
+        with open(filename, 'w') as fp:
+            fp.writelines(all_files)
+            fp.close()
+    return all_files
 
 def gather_segmentation_images(filename:str, paths:str, id:str):
     """Get all of the Images with Segmentations.
@@ -232,142 +318,6 @@ def gather_segmentation_images(filename:str, paths:str, id:str):
         patient_folder = list(filter(lambda x: row[id] in x, list__paths))
         print(patient_folder)
         exit()
-
-def extract_key_images(data_dir:str, metadata_filename:str, new_download = False):
-    """Extract the key images based on the Annotation Boxes file.
-
-    Grabs the images from the full directory and
-    moves them to a separate directory for keeping
-    only the key data.
-
-    Parameters
-    ----------
-    dat_dir : str
-        The path to the images.
-    metadata_filename : str
-        name of the file containing superfluous data about the image
-        (i.e. the age of the patient, the image orientation, etc.).
-    new_download : bool
-        Value used to determine whether the paths have already been
-        extracted.
-
-    Returns
-    -------
-    None
-        This is returned in the case that the download is not new.
-
-    or
-
-    Polars.DataFrame
-        Contains the image paths with the metadata associated with
-        the image.
-    """
-    if not new_download:
-        return None
-    else:
-        df__metadata = pl.read_csv(metadata_filename)
-        root_path = os.getcwd()
-        root_path = root_path.replace("//", "/")
-        img_paths_list = list()
-        for _, row in df__metadata.iterrows():
-            PID = row["Subject ID"]
-            file_location = row["File Location"]
-            file_location = file_location.replace("//","/").lstrip(".")
-            file_location = root_path + data_dir + file_location
-            imgs = os.listdir(file_location)
-            for img in imgs:
-                ds = dcmread(file_location + '/' + img)
-                img_paths = {
-                    'ID1': PID,
-                    'paths': file_location + '/' + img,
-                    'LeftRight': ds.ImageLaterality
-                }
-                img_paths_list.append(img_paths)
-        df_img_paths = pl.DataFrame(img_paths_list)
-        return df_img_paths
-
-def extract_dicom_data(file, target_data:list =[]) -> dict:
-    """Extract the data from the .dcm files.
-
-    Reads each independent file using the pydicom
-    library and extracts key information, such as
-    the age, sex, ethnicity, weight of the patient,
-    and the imaging modality used.
-
-    Parameters
-    ---------
-    file : str or pydicom.Dataset
-        Either the path to the file or pydicom Dataset.
-        In the case that the .dcm file is already
-        loaded, the algorithm will proceed to extract
-        the data. Otherwise, the algorithm will load
-        the .dcm file and extract the necessary data.
-
-    target_data : List
-        This contains all of the tag names that will be
-        used as part of the data extraction. In the case
-        that the list is empty, then only the image will be
-        used.
-
-    Returns
-    -------
-    dictionary
-        Dictionary comprised of the image data
-        (numpy array), and the metadata associated
-        with the DICOM file as its own separate
-        `key:value` pair. This only pertains to the
-        patient data and NOT the metadata describing
-        how the image was taken.
-
-    Raises
-    ------
-    InvalidDicomError
-        The file selected for reading is not a DICOM
-        or does not end in .dcm. Set in place to
-        stop the algorithm in the case that any other
-        filetype is introduced. Causes an error to be
-        printed and the program to exit.
-
-    AttributeError
-        Occurs in the case that the DICOM file does
-        not contain some of the metadata used for
-        classifying the patient. In the case that
-        the metadata does not exist, then the model
-        continues on with the classification and some
-        plots may be missing from the second page.
-    """
-    datapoint = dict()
-    if type(file) == str:
-        try:
-            ds = dcmread(file)
-            datapoint['Full Location'] = file
-        except (InvalidDicomError) as e:
-            print(f"ERROR: The file {file} is not a DICOM file and therefore cannot be read.")
-            print(e)
-            exit()
-    else:
-        ds = file
-
-    slices = np.asarray(ds.pixel_array).astype('float32')
-    #slices = da.asarray(ds.pixel_array).astype('float32')
-    #slices = (slices - np.min(slices)) / (np.max(slices) - np.min(slices))
-    if target_data == []:
-        pass
-    else:
-        for target in target_data:
-            if target in ds:
-                datapoint[str(target)] = ds[target].value
-            else:
-                pass
-
-    if slices.ndim <= 2:
-        pass
-    elif slices.ndim >= 3:
-        slices = slices[0]
-    slices = slices[..., np.newaxis]
-    datapoint['image'] = slices
-    datapoint['Patient ID'] = ds.PatientID
-    return datapoint
 
 def load_image(filename:str, size:tuple|int) -> np.ndarray:
     """Load the image based on the path.
@@ -433,54 +383,6 @@ def merge_dictionaries(*dictionaries) -> dict:
                 mdictionary[key].append(value)
     return mdictionary
 
-def transform_dicom_data(datapoint:dict, definitions:dict) -> dict:
-    """Transform the data into an format that can be used for displaying and modeling.
-
-    Transforms the textual categorical data into numerical
-    to input the data into the machine learning model. This
-    function depends upon two dictionaries, one containing
-    the data and the other a set of references that can be
-    used to transform the textual categorical values into
-    the numerical values. This function also removes the
-    area of the image that contains columns whose values
-    are zero.
-
-    Parameters
-    ----------
-    datapoint : dictionary
-        Contains the image and related metadata in
-        `key:value` pair format.
-    definitions : dictionary
-        Set of values found within the data point and their
-        definitions. This will contain the column value and
-        the meaning of each categorical value.
-    Returns
-    -------
-    dictionary
-        same dictionary with the categorical data
-        transformed into numerical (from text).
-    Raises
-    ------
-    AttributeError
-        Indicator of the `key` does not exists.
-    KeyError
-        Indicator of the `key` does not exists.
-
-    """
-    for key, values in definitions.items():
-        if key in datapoint.keys():
-            datapoint[key] = values[datapoint.get(key)]
-        else:
-            print(f'WARNING: Indicator "{key}" could not be found within the data point.')
-    try:
-        img = datapoint['image']
-        img = img[:, ~np.all(img == 0, axis = 0)]
-        img_mod = rescale_image(img)
-        datapoint['image'] = img_mod
-    except (AttributeError, KeyError):
-        print('WARNING: Indicator "image" does not exist.')
-    return datapoint
-
 def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.DataFrame:
     """Balance data for model training.
 
@@ -542,102 +444,6 @@ def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.Da
         #    diff_sample_size += sample_group_size - len(df__selected_group)
         #df_balanced = pl.concat(sampled_groups)
     return df_balanced
-
-def load_training_data(filename:str, pathcol:str, balance:bool=True, sample_size:int=1_000, cat_labels:list=[]):
-    """Load the DICOM data as a dictionary.
-
-    Creates a dictionary containing three different
-    numpy arrays. The first array is comprised of
-    multiple DICOM images, the second contains the
-    categorical data as a vector, and the third contains
-    the classification in numerical form.
-
-    Parameters
-    ----------
-    filename : String
-        path to a file which contains the metadata,
-        classification, and path to the DICOM file.
-        Will also contain some sort of ID to better
-        identify the samples.
-
-    validate : Boolean
-        Conditional statement that determines whether the
-        data requires a split between training and
-        validation. In the case that this is False, then
-        the data set is not split between training and
-        validation.
-
-    cat_labels : list
-        Contains all of the labels that will be used within
-        the training set. These labels are meant to be the
-        column names of the categorical values that will be
-        used for training the machine learning model.
-    Returns
-    -------
-    dictionary
-        Dictionary containing the encoded values
-        for the metadata and the transformed image
-        for input to the model.
-    """
-    if type(filename) == str:
-        df = pl.read_csv(filename)
-    elif type(filename) == pl.DataFrame:
-        df = filename
-    else:
-        print("There was some error.")
-        exit()
-    #data = dict()
-    if balance == True:
-        df_balanced = balance_data(df, sample_size=sample_size)
-    else:
-        df_balanced = df.sample(n=sample_size, seed=42)
-
-    if bool(cat_labels) == False:
-        data = map(extract_data, df_balanced[pathcol])
-        df = pl.DataFrame(list(data))
-        df_full = df_balanced.join(df, on=pathcol)
-        return df_full
-    elif bool(cat_labels) == True:
-        full_labels = cat_labels * len(cat_labels) * len(df_balanced)
-        data = map(extract_data, df_balanced[pathcol], full_labels)
-        df = pl.DataFrame(list(data))
-        df_full = df.join(df_balanced, on=pathcol)
-        return df_full
-    else:
-        print('None of the conditions were met')
-        exit()
-
-def  load_testing_data(filename:str, sample_size= 1_000) -> pl.DataFrame:
-    """Load the data used  for testing.
-
-    Loads a dataset to be fed into the model for making
-    predictions. The output of the testing data will be
-    comprised of a dictionary that can be fed directly into
-    the model.
-
-    Parameters
-    ----------
-    filename : str
-        path to file containing the file paths to test data.
-
-    Returns
-    -------
-    Polars DataFrame
-        Contains the all of the data necessary for testing.
-    """
-    df = pl.read_csv(filename)
-    df = df.dropna(subset=['classification'])
-    df = df.sample(n=sample_size, seed=42)
-    print("iterating through {} rows...".format(len(df)))
-    dfp_list = list()
-    for _, row in df.iterrows():
-        datapoint = extract_data(row['paths'])
-        datapoint = transform_data(datapoint)
-        drow = row.to_dict()
-        datapoint.update(drow)
-        dfp_list.append(datapoint)
-    tdata = pl.DataFrame(dfp_list)
-    return tdata
 
 def rescale_image(img:np.ndarray) -> np.ndarray:
     """Rescale the image to a more manageable size.
