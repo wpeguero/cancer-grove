@@ -25,6 +25,7 @@ from torch.utils import data
 from torchvision import datasets, transforms
 
 from models import CustomCNN, AlexNet, InceptionStem, InceptionA, InceptionB, InceptionC, ReductionA, ReductionB, InceptionV4
+from datasets import DICOMSet
 from trainers import TrainModel, VERSION
 import models
 
@@ -34,19 +35,35 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    # Path to base files
-    fn__paths = "data/CBIS-DDSM-SET/nudicom_paths_with_typesv2.csv"
-    fn__training = "data/CBIS-DDSM-SET/training_description.csv"
-    fn__testing = "data/CBIS-DDSM-SET/test_description.csv"
-    # Paths to training dataset
-    df__paths = pl.read_csv(fn__paths)
-    df__training = pl.read_csv(fn__training)
-    df__train_set = df__paths.join(df__training, on='patient_id')
-    df__train_set.write_csv('data/CBIS-DDSM-SET/trainset.csv')
-    # Paths to testing dataset
-    df__testing = pl.read_csv(fn__testing)
-    df__test_set = df__paths.join(df__testing, on='patient_id')
-    df__test_set.write_csv('data/CBIS-DDSM-SET/testset.csv')
+    # Training Set
+    fn__train = "data/CBIS-DDSM-SET/trainset.csv"
+    # Clean the Data
+    df__train = pl.read_csv(fn__train)
+    df__images = df__train.filter(pl.col("type") == 'image')
+    df__images = df__images.with_columns(pl.col('pathology').cast(pl.Categorical))
+    list__categories = df__images.unique(subset=['pathology']).get_column('pathology').to_list()
+    labels = {label:i for i, label in enumerate(list__categories)}
+    inverted_labels = {v:k for k, v in labels.items()}
+    df__images = df__images.with_columns(pl.col('pathology').replace(labels, default=None))
+    # Create the Transforms for the Datasets
+    img_transforms = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Resize(img_size, antialias=True),
+        transforms.Grayscale(num_output_channels=1),
+        transforms.Normalize((0.5), (0.5))
+        ])
+    target_transform = transforms.Compose([
+        create_target_transform(3),
+        ])
+    dataset__dicom = DICOMSet(df__images, label_col='pathology', img_col='path', image_transforms=img_transforms, categorical_transforms=target_transform)
+    dataloader__dicom = data.DataLoader(dataset__dicom, shuffle=True, batch_size=64, num_workers=4)
+    model = InceptionV4(3, 1)
+    opt = optim.SGD(model.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
+    loss = nn.CrossEntropyLoss()
+    trainer = TrainModel(model, opt, loss)
+    trainer.train(dataloader__dicom, 40, gpu=True)
+    new_model = trainer.get_model()
+    torch.save(new_model.state_dict(), "models/cbis_cancer_classifier_v{}.pt".format(2))
 
 
 def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
