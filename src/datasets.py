@@ -5,6 +5,8 @@ from torch.utils import data
 import polars as pl
 from pydicom import dcmread
 import numpy as np
+import torch
+from PIL import Image
 
 
 def _main():
@@ -130,14 +132,15 @@ class DICOMSet(data.Dataset):
         """Get the datapoint."""
         if torch.is_tensor(index):
             index.tolist()
-        dicom_file = dcmread(self.csvfile.select(self.pcol).row(index)[0])
+        dicom_file = dcmread(self.csv.select(self.pcol).row(index)[0])
         img = self.extract_image(dicom_file)
-        cat = self.csvfile.select(self.lcol).row(index)[0]
+        cat = self.csv.select(pl.col(self.lcol).cast(pl.Int8)).row(index)[0]
         if self.img_transforms:
             img = self.img_transforms(img)
         if self.cat_transforms:
             cat = self.cat_transforms(cat)
-        sample = {'image': img, 'labels': cat}
+        #sample = {'image': img, 'labels': cat}
+        sample = (img, cat)
         return sample
 
     @staticmethod
@@ -145,7 +148,7 @@ class DICOMSet(data.Dataset):
         """Extract image from the DICOM File."""
         slices = np.asarray(dicom_file.pixel_array).astype('float32')
         if slices.ndim <= 2:
-            pass
+            slice = slices
         elif slices.ndim > 3:
             slice = slices[0]
         slice = slice[..., np.newaxis]
