@@ -41,8 +41,107 @@ STANDARD_IMAGE_TRANSFORMS = transforms.Compose([
 
 def _main():
     """Test the new functions."""
-    pass
+    fn__train = "data/CMMD-Set/full_dataset.csv"
+    df__dataset = pl.read_csv(fn__train)
+    # Split the data into train, validate, and test
+    df__dataset = df__dataset.sample(fraction=1, shuffle=True)
+    test_size = round(0.20 * len(df__dataset))
+    df__train = df__dataset.slice(0,0)
+    exit()
+    #Transform categorical column to numerical representation
+    #Loading the models
+    model1 = InceptionV4(3, 1)
+    model2 = CustomCNN(1, 3)
+    model3 = AlexNet(1, 3)
+    #Loading optimizers
+    opt1 = optim.SGD(model1.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
+    opt2 = optim.SGD(model2.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
+    opt3 = optim.SGD(model3.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
+    #Loading the Losses
+    loss1 = nn.CrossEntropyLoss()
+    loss2 = nn.CrossEntropyLoss()
+    loss3 = nn.CrossEntropyLoss()
+    #Loading the Trainers
+    trainer1 = TrainModel(model1, opt1, loss1)
+    trainer2 = TrainModel(model2, opt2, loss2)
+    trainer3 = TrainModel(model3, opt3, loss3)
+    # Training and saving models
+    trainer1.train(dataloader__dicom, 60, gpu=True)
+    trainer2.train(dataloader__dicom, 60, gpu=True)
+    trainer3.train(dataloader__dicom, 60, gpu=True)
 
+    with open('data/CMMD-Set/label.json', 'w') as fp:
+        json.dump(labels, fp)
+        fp.close()
+    trained_model1 = trainer1.get_model()
+    torch.save(trained_model1.state_dict(), "models/inceptionv4_final.pt")
+    trained_model2 = trainer2.get_model()
+    torch.save(trained_model1.state_dict(), "models/customcnn_final.pt")
+    trained_model3 = trainer3.get_model()
+    torch.save(trained_model3.state_dict(), "models/alexnet_final.pt")
+
+
+def split_set(df:pl.DataFrame, train_size:float=0.0, test_size:float=0.0, valid_size:float=0.0):
+    """Split the dataset into train, test, and validation sets.
+
+    Splits a polars DataFrame into pieces or resamples the DataFrame
+    By using the length of the DataFrame with the train, test, and
+    validate set sizes to split the whole DataFrame into three
+    proportions.
+
+    Parameters
+    ----------
+    df : Polars DataFrame
+        The entire Dataset that will be split into pieces.
+    train_size : Int
+        value between 0.00 and 1.00 which will be used to determine
+        the train set size.
+    test_size : Int
+        value between 0.00 and 1.00 which will be used to determine
+        the test set size.
+    valid_size : Int
+        value between 0.00 and 1.00 which will be used to determine
+        the validation set size.
+    """
+    assert sum([train_size, test_size, valid_size]) <= 1.00, "The sum of Train, Test, and Valid sets should be equal to 100%."
+    df.sample(fraction=1, shuffle=True)
+    if sum([train_size, test_size, valid_size]) == 0.0:
+        return df
+    if train_size == 1.00 or test_size == 1.00 or valid_size == 1.00:
+        return df
+    elif sum(train_size, test_size) == 1.00:
+        train_length = round(len(df) * train_size)
+        train_set = df.slice(0, train_length)
+        test_length = round(len(df) * test_size)
+        test_offset = train_length + 1
+        test_set = df.slice(test_offset, test_length)
+        return train_set, test_set
+    elif sum(train_size, valid_size) == 1.00:
+        train_length = round(len(df) * train_size)
+        train_set = df.slice(0, train_length)
+        valid_length = round(len(df) * valid_size)
+        valid_offset = train_length + 1
+        valid_set = df.slice(valid_offset, valid_length)
+        return train_set, valid_set
+    elif sum(test_size, valid_size) == 1.00:
+        test_length = round(len(df) * test_size)
+        test_set = df.slice(0, test_length)
+        valid_length = round(len(df) * valid_size)
+        valid_offset = test_length + 1
+        valid_set = df.slice(valid_offset, valid_length)
+        return test_set, valid_set
+    elif sum([train_size, test_size, valid_size]) == 1.00:
+        train_length = round(len(df) * train_size)
+        train_set = df.slice(0, train_length)
+        test_length = round(len(df) * test_size)
+        test_offset = train_length + 1
+        test_set = df.slice(test_offset, test_length)
+        valid_length = round(len(df) * valid_size)
+        valid_offset = train_length + test_length + 1
+        valid_set = df.slice(valid_offset, valid_length)
+        return train_set, test_set, valid_set
+    else:
+        pass
 
 def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
     """Change the column name by replacing space with underline and decapitalize words.
