@@ -43,12 +43,19 @@ def _main():
     """Test the new functions."""
     fn__train = "data/CMMD-Set/full_dataset.csv"
     df__dataset = pl.read_csv(fn__train)
-    # Split the data into train, validate, and test
-    df__dataset = df__dataset.sample(fraction=1, shuffle=True)
-    test_size = round(0.20 * len(df__dataset))
-    df__train = df__dataset.slice(0,0)
-    exit()
     #Transform categorical column to numerical representation
+    df__dataset = df__dataset.with_columns(pl.col('classification').cast(pl.Categorical))
+    list__categories = df__dataset.unique(subset=['classification']).get_column('classification').to_list()
+    labels = {label:i for i, label in enumerate(list__categories)}
+    inverted_labels = {v:k for k, v in labels.items()}
+    train, test, validate = split_set(df__dataset, 0.60, 0.20, 0.20)
+    train.write_csv('data/CMMD-Set/train_set.csv')
+    test.write_csv('data/CMMD-Set/test_set.csv')
+    test.write_csv('data/CMMD-Set/test_set.csv')
+    exit()
+    # Transform and load the datasets
+    cat_trans = create_target_transform(2)
+    train_set = DICOMSet(train, label_col='classification', img_col='path', image_transforms=STANDARD_IMAGE_TRANSFORMS, categorical_transforms=cat_trans)
     #Loading the models
     model1 = InceptionV4(3, 1)
     model2 = CustomCNN(1, 3)
@@ -104,26 +111,26 @@ def split_set(df:pl.DataFrame, train_size:float=0.0, test_size:float=0.0, valid_
         the validation set size.
     """
     assert sum([train_size, test_size, valid_size]) <= 1.00, "The sum of Train, Test, and Valid sets should be equal to 100%."
-    df.sample(fraction=1, shuffle=True)
+    df.sample(fraction=1, shuffle=True, seed=42)
     if sum([train_size, test_size, valid_size]) == 0.0:
         return df
     if train_size == 1.00 or test_size == 1.00 or valid_size == 1.00:
         return df
-    elif sum(train_size, test_size) == 1.00:
+    elif sum([train_size, test_size]) == 1.00:
         train_length = round(len(df) * train_size)
         train_set = df.slice(0, train_length)
         test_length = round(len(df) * test_size)
         test_offset = train_length + 1
         test_set = df.slice(test_offset, test_length)
         return train_set, test_set
-    elif sum(train_size, valid_size) == 1.00:
+    elif sum([train_size, valid_size]) == 1.00:
         train_length = round(len(df) * train_size)
         train_set = df.slice(0, train_length)
         valid_length = round(len(df) * valid_size)
         valid_offset = train_length + 1
         valid_set = df.slice(valid_offset, valid_length)
         return train_set, valid_set
-    elif sum(test_size, valid_size) == 1.00:
+    elif sum([test_size, valid_size]) == 1.00:
         test_length = round(len(df) * test_size)
         test_set = df.slice(0, test_length)
         valid_length = round(len(df) * valid_size)
