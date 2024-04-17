@@ -126,7 +126,8 @@ class DICOMSet(data.Dataset):
 
     def __len__(self):
         """Calculate the length of the dataset."""
-        return self.csv.select(pl.count()).item()
+        return len(self.csv)
+        #return self.csv.select(pl.count()).item()
 
     def __getitem__(self, index):
         """Get the datapoint."""
@@ -140,8 +141,7 @@ class DICOMSet(data.Dataset):
         if self.cat_transforms:
             cat = self.cat_transforms(cat)
         #sample = {'image': img, 'labels': cat}
-        sample = (img, cat)
-        return sample
+        return img, cat
 
     @staticmethod
     def extract_image(dicom_file):
