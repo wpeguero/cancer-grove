@@ -41,49 +41,42 @@ STANDARD_IMAGE_TRANSFORMS = transforms.Compose([
 
 def _main():
     """Test the new functions."""
-    fn__train = "data/CMMD-Set/full_dataset.csv"
-    df__dataset = pl.read_csv(fn__train)
-    #Transform categorical column to numerical representation
-    df__dataset = df__dataset.with_columns(pl.col('classification').cast(pl.Categorical))
-    list__categories = df__dataset.unique(subset=['classification']).get_column('classification').to_list()
-    labels = {label:i for i, label in enumerate(list__categories)}
-    inverted_labels = {v:k for k, v in labels.items()}
-    train, test, validate = split_set(df__dataset, 0.60, 0.20, 0.20)
-    train.write_csv('data/CMMD-Set/train_set.csv')
-    test.write_csv('data/CMMD-Set/test_set.csv')
-    test.write_csv('data/CMMD-Set/test_set.csv')
-    exit()
+    fn__train = "data/CMMD-Set/valid_set.csv"
+    train = pl.read_csv(fn__train) # Need to transform column to numerical representation
+    # Transform categorical into numerical
+    with open('data/CMMD-Set/label.json', 'r') as fp:
+        label = json.load(fp)
+        fp.close
+    train = train.with_columns(pl.col('classification').replace(label, default=None))
     # Transform and load the datasets
     cat_trans = create_target_transform(2)
     train_set = DICOMSet(train, label_col='classification', img_col='path', image_transforms=STANDARD_IMAGE_TRANSFORMS, categorical_transforms=cat_trans)
+    train_loader = data.DataLoader(train_set, shuffle=True, batch_size=32, num_workers=8)
     #Loading the models
-    model1 = InceptionV4(3, 1)
-    model2 = CustomCNN(1, 3)
-    model3 = AlexNet(1, 3)
+    model1 = InceptionV4(2, 1)
+    model2 = CustomCNN(1, 2)
+    model3 = AlexNet(1, 2)
     #Loading optimizers
     opt1 = optim.SGD(model1.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
     opt2 = optim.SGD(model2.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
     opt3 = optim.SGD(model3.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
     #Loading the Losses
-    loss1 = nn.CrossEntropyLoss()
-    loss2 = nn.CrossEntropyLoss()
-    loss3 = nn.CrossEntropyLoss()
+    loss1 = nn.BCELoss()
+    loss2 = nn.BCELoss()
+    loss3 = nn.BCELoss()
     #Loading the Trainers
     trainer1 = TrainModel(model1, opt1, loss1)
     trainer2 = TrainModel(model2, opt2, loss2)
     trainer3 = TrainModel(model3, opt3, loss3)
     # Training and saving models
-    trainer1.train(dataloader__dicom, 60, gpu=True)
-    trainer2.train(dataloader__dicom, 60, gpu=True)
-    trainer3.train(dataloader__dicom, 60, gpu=True)
+    trainer1.train(train_loader, 60, gpu=True)
+    trainer2.train(train_loader, 60, gpu=True)
+    trainer3.train(train_loader, 60, gpu=True)
 
-    with open('data/CMMD-Set/label.json', 'w') as fp:
-        json.dump(labels, fp)
-        fp.close()
     trained_model1 = trainer1.get_model()
     torch.save(trained_model1.state_dict(), "models/inceptionv4_final.pt")
     trained_model2 = trainer2.get_model()
-    torch.save(trained_model1.state_dict(), "models/customcnn_final.pt")
+    torch.save(trained_model2.state_dict(), "models/customcnn_final.pt")
     trained_model3 = trainer3.get_model()
     torch.save(trained_model3.state_dict(), "models/alexnet_final.pt")
 
