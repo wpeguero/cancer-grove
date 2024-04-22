@@ -7860,6 +7860,131 @@ a.anchor-link {
 </div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
 <p>As shown above, the image is currently of a very high resolution (2294, 1914). This is not ideal for machine learning as the amount of data extracted from each individual pixel scales the model to a very large size (possibly within the terabites level). Ideally, one would extract region(s) of of interest from the image which would be smaller than the image resolution and make the model lighter. For now, the image will be rescaled to a more proportionate size (512, 512).</p>
 <p>From here on, the three models will be loaded and the test and validation tests will be used observe the results.</p>
+<h2 id="Data-Modeling">Data Modeling<a class="anchor-link" href="#Data-Modeling">¶</a></h2><p>Before we load the trained models and test them, we first need to load the validation and test datasets. We begin by first creating the transformations required for testing the models on the datasets.</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">torchvision</span> <span class="kn">import</span> <span class="n">transforms</span>
+<span class="kn">import</span> <span class="nn">torch</span>
+
+<span class="n">img_trans</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Compose</span><span class="p">([</span>
+    <span class="n">transforms</span><span class="o">.</span><span class="n">ToTensor</span><span class="p">(),</span>
+    <span class="n">transforms</span><span class="o">.</span><span class="n">Resize</span><span class="p">((</span><span class="mi">512</span><span class="p">,</span> <span class="mi">512</span><span class="p">),</span> <span class="n">antialias</span><span class="o">=</span><span class="kc">True</span><span class="p">),</span>
+    <span class="n">transforms</span><span class="o">.</span><span class="n">Grayscale</span><span class="p">(</span><span class="n">num_output_channels</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span>
+    <span class="n">transforms</span><span class="o">.</span><span class="n">Normalize</span><span class="p">((</span><span class="mf">0.5</span><span class="p">),</span> <span class="p">(</span><span class="mf">0.5</span><span class="p">))</span>
+<span class="p">])</span>
+
+<span class="n">cat_trans</span> <span class="o">=</span> <span class="n">transforms</span><span class="o">.</span><span class="n">Lambda</span><span class="p">(</span><span class="k">lambda</span> <span class="n">y</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float</span><span class="p">)</span><span class="o">.</span><span class="n">scatter_</span><span class="p">(</span><span class="n">dim</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">tensor</span><span class="p">(</span><span class="n">y</span><span class="p">),</span> <span class="n">value</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell jp-MarkdownCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea"><div class="jp-InputPrompt jp-InputArea-prompt">
+</div><div class="jp-RenderedHTMLCommon jp-RenderedMarkdown jp-MarkdownOutput" data-mime-type="text/markdown">
+<p>Now that the transformations have been created, one can load the datasets from their respective csv files. After loading the data one can use a custom DataSet, transform the data and load it unto the dataloader for model testing.</p>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell jp-mod-noOutputs">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">src.datasets</span> <span class="kn">import</span> <span class="n">DICOMSet</span>
+<span class="kn">from</span> <span class="nn">torch.utils</span> <span class="kn">import</span> <span class="n">data</span>
+<span class="kn">import</span> <span class="nn">json</span> <span class="c1">#Load the dictionary and use it to transform the classification column</span>
+
+<span class="n">fn__test</span> <span class="o">=</span> <span class="s1">'data/CMMD-Set/test_set.csv'</span>
+<span class="n">fn__valid</span> <span class="o">=</span> <span class="s1">'data/CMMD-Set/valid_set.csv'</span>
+<span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="s1">'data/CMMD-Set/label.json'</span><span class="p">,</span> <span class="s1">'r'</span><span class="p">)</span> <span class="k">as</span> <span class="n">fp</span><span class="p">:</span>
+    <span class="n">dict__labels</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">fp</span><span class="p">)</span>
+    <span class="n">fp</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+
+<span class="n">classes</span> <span class="o">=</span> <span class="p">(</span><span class="s1">'malignant'</span><span class="p">,</span> <span class="s1">'benign'</span><span class="p">)</span>
+
+<span class="n">df__test</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">fn__test</span><span class="p">)</span>
+<span class="n">df__test</span> <span class="o">=</span> <span class="n">df__test</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">'classification'</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">dict__labels</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">))</span>
+<span class="n">df__valid</span> <span class="o">=</span> <span class="n">pl</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">fn__valid</span><span class="p">)</span>
+<span class="n">df__valid</span> <span class="o">=</span> <span class="n">df__valid</span><span class="o">.</span><span class="n">with_columns</span><span class="p">(</span><span class="n">pl</span><span class="o">.</span><span class="n">col</span><span class="p">(</span><span class="s1">'classification'</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="n">dict__labels</span><span class="p">,</span> <span class="n">default</span><span class="o">=</span><span class="kc">None</span><span class="p">))</span>
+
+<span class="n">test_set</span> <span class="o">=</span> <span class="n">DICOMSet</span><span class="p">(</span><span class="n">df__test</span><span class="p">,</span> <span class="n">label_col</span><span class="o">=</span><span class="s1">'classification'</span><span class="p">,</span> <span class="n">image_transforms</span><span class="o">=</span><span class="n">img_trans</span><span class="p">,</span> <span class="n">categorical_transforms</span><span class="o">=</span><span class="n">cat_trans</span><span class="p">)</span>
+<span class="n">test_loader</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">DataLoader</span><span class="p">(</span><span class="n">test_set</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">num_workers</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+<span class="n">valid_set</span> <span class="o">=</span> <span class="n">DICOMSet</span><span class="p">(</span><span class="n">df__valid</span><span class="p">,</span> <span class="n">label_col</span><span class="o">=</span><span class="s1">'classification'</span><span class="p">,</span> <span class="n">image_transforms</span><span class="o">=</span><span class="n">img_trans</span><span class="p">,</span> <span class="n">categorical_transforms</span><span class="o">=</span><span class="n">cat_trans</span><span class="p">)</span>
+<span class="n">valid_loader</span> <span class="o">=</span> <span class="n">data</span><span class="o">.</span><span class="n">DataLoader</span><span class="p">(</span><span class="n">valid_set</span><span class="p">,</span> <span class="n">shuffle</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="mi">32</span><span class="p">,</span> <span class="n">num_workers</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+</div><div class="jp-Cell jp-CodeCell jp-Notebook-cell">
+<div class="jp-Cell-inputWrapper" tabindex="0">
+<div class="jp-Collapser jp-InputCollapser jp-Cell-inputCollapser">
+</div>
+<div class="jp-InputArea jp-Cell-inputArea">
+<div class="jp-InputPrompt jp-InputArea-prompt">In [ ]:</div>
+<div class="jp-CodeMirrorEditor jp-Editor jp-InputArea-editor" data-type="inline">
+<div class="cm-editor cm-s-jupyter">
+<div class="highlight hl-ipython3"><pre><span></span><span class="kn">from</span> <span class="nn">src.trainers</span> <span class="kn">import</span> <span class="n">TrainModel</span>
+<span class="kn">from</span> <span class="nn">src.models</span> <span class="kn">import</span> <span class="n">AlexNet</span><span class="p">,</span> <span class="n">CustomCNN</span><span class="p">,</span> <span class="n">InceptionV4</span>
+
+<span class="n">model1</span> <span class="o">=</span> <span class="n">AlexNet</span><span class="p">()</span>
+<span class="n">model1</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">'models/alexnet_final_v2.pt'</span><span class="p">))</span>
+<span class="n">model1</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+<span class="n">TrainModel</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">model1</span><span class="p">,</span> <span class="n">test_loader</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span> <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">TrainModel</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">model1</span><span class="p">,</span> <span class="n">valid_loader</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span> <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">model2</span> <span class="o">=</span> <span class="n">CustomCNN</span><span class="p">()</span>
+<span class="n">model2</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">'models/customcnn_final_v2.pt'</span><span class="p">))</span>
+<span class="n">model2</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+<span class="n">TrainModel</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">model2</span><span class="p">,</span> <span class="n">test_loader</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span> <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">TrainModel</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">model2</span><span class="p">,</span> <span class="n">valid_loader</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span> <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">model3</span> <span class="o">=</span> <span class="n">InceptionV4</span><span class="p">(</span><span class="n">n_classes</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">n_channels</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+<span class="n">model3</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s1">'models/inceptionv4_final_v2.pt'</span><span class="p">))</span>
+<span class="n">model3</span><span class="o">.</span><span class="n">eval</span><span class="p">()</span>
+<span class="n">TrainModel</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">model3</span><span class="p">,</span> <span class="n">test_loader</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span> <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+<span class="n">TrainModel</span><span class="o">.</span><span class="n">test</span><span class="p">(</span><span class="n">model3</span><span class="p">,</span> <span class="n">valid_loader</span><span class="p">,</span> <span class="n">classes</span><span class="p">,</span> <span class="n">gpu</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">version</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+</div>
+</div>
+<div class="jp-Cell-outputWrapper">
+<div class="jp-Collapser jp-OutputCollapser jp-Cell-outputCollapser">
+</div>
+<div class="jp-OutputArea jp-Cell-outputArea">
+<div class="jp-OutputArea-child">
+<div class="jp-OutputPrompt jp-OutputArea-prompt"></div>
+<div class="jp-RenderedText jp-OutputArea-output" data-mime-type="text/plain" tabindex="0">
+<pre>Accuracy for class: malignant is 100.0%
+Accuracy for class: benign is 0.0%
+Accuracy for class: malignant is 100.0%
+Accuracy for class: benign is 0.0%
+Accuracy for class: malignant is 96.1%
+Accuracy for class: benign is 5.9%
+Accuracy for class: malignant is 95.9%
+Accuracy for class: benign is 2.1%
+Accuracy for class: malignant is 98.2%
+Accuracy for class: benign is 0.3%
+Accuracy for class: malignant is 98.0%
+Accuracy for class: benign is 1.8%
+</pre>
+</div>
 </div>
 </div>
 </div>
