@@ -26,7 +26,7 @@ from torchvision import datasets, transforms
 
 from models import CustomCNN, AlexNet, InceptionStem, InceptionA, InceptionB, InceptionC, ReductionA, ReductionB, InceptionV4
 from datasets import DICOMSet
-from trainers import TrainModel, VERSION
+from trainers import Trainer, VERSION
 import models
 
 img_size = (512, 512)
@@ -65,9 +65,9 @@ def _main():
     loss2 = nn.BCELoss()
     loss3 = nn.BCELoss()
     #Loading the Trainers
-    trainer1 = TrainModel(model1, opt1, loss1)
-    trainer2 = TrainModel(model2, opt2, loss2)
-    trainer3 = TrainModel(model3, opt3, loss3)
+    trainer1 = Trainer(model1, opt1, loss1)
+    trainer2 = Trainer(model2, opt2, loss2)
+    trainer3 = Trainer(model3, opt3, loss3)
     # Training and saving models
     trainer1.train(train_loader, 60, gpu=True)
     trainer2.train(train_loader, 60, gpu=True)

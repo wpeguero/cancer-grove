@@ -7,7 +7,7 @@ with open('src/model_version.txt', 'r') as fp:
     VERSION = int(fp.read())
     fp.close()
 
-class TrainModel:
+class Trainer:
     """Class for training pytorch machine learning models.
 
     This class functions as an environment for training the
@@ -91,7 +91,8 @@ class TrainModel:
                 running_loss += loss.item()
             print(f'[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
 
-    def test(self, testloader:data.DataLoader, classes:tuple, gpu=False, version:int=0):
+    @staticmethod
+    def test(model, testloader:data.DataLoader, classes:tuple, gpu=False, version:int=0):
         """Test the model's ability to classify on a never before seen dataset.
 
         Parameters
@@ -108,15 +109,16 @@ class TrainModel:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         else:
             device = torch.device("cpu")
+        model.to(device)
         correct_pred = {classname: 0 for classname in classes}
         total_pred = {classname: 0 for classname in classes}
-        results = list("Accuracy Results on test set for Machine Learning Model {}\n".format(self.model.__class__.__name__))
+        results = list("Accuracy Results on test set for Machine Learning Model {}\n".format(model.__class__.__name__))
 
         with torch.no_grad():
             for images, labels in testloader:
                 images = images.to(device)
                 labels = labels.to(device)
-                outputs = self.model(images)
+                outputs = model(images)
                 _, predictions = torch.max(outputs, 1)
                 _, lindices = torch.max(labels, 1)
                 for label, pred in zip(lindices, predictions):
@@ -127,6 +129,6 @@ class TrainModel:
             accuracy = 100 * float(correct_count) / total_pred[classname]
             results.append(f'Accuracy for class: {classname:5s} is {accuracy:.1f}%\n')
             print(f'Accuracy for class: {classname:5s} is {accuracy:.1f}%')
-        with open('data/{}_results_version_{}.txt'.format(self.model.__class__.__name__, version), 'w') as fp:
+        with open('data/{}_results_version_{}.txt'.format(model.__class__.__name__, version), 'w') as fp:
             fp.writelines(results)
             fp.close()
