@@ -84,15 +84,17 @@ class Trainer:
                 loss.backward()
                 self.opt.step()
 
-                _, ipredicted = torch.max(outputs.data, 1)
-                _, lindices = torch.max(labels.data, 1)
+                #_, ipredicted = torch.max(outputs.data, 1)
+                ipredicted= outputs.max(1).indices
+                #_, lindices = torch.max(labels.data, 1)
+                lindices = labels.max(1).indices
                 total += labels.size(0)
                 correct += (ipredicted == lindices).sum().item()
                 running_loss += loss.item()
             print(f'[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
 
     @staticmethod
-    def test(model, testloader:data.DataLoader, classes:tuple, gpu=False, version:int=0):
+    def test(model, testloader:data.DataLoader, classes:tuple, gpu:bool=False, version:int=0):
         """Test the model's ability to classify on a never before seen dataset.
 
         Parameters
@@ -132,3 +134,29 @@ class Trainer:
         with open('data/{}_results_version_{}.txt'.format(model.__class__.__name__, version), 'w') as fp:
             fp.writelines(results)
             fp.close()
+
+    @staticmethod
+    def create_confusion_matrix(preds, labels, device):
+        """
+        Create a confusion matrix for calculating metrics.
+
+        Creates a Tensor that can be used to develop metrics, such as
+        accuracy, precision, etc.
+
+        Parameters
+        ----------
+        preds
+            The predicted values
+        labels
+            The true value
+        """
+        n_classes = len(labels[0])
+        cm = torch.zeros(n_classes, n_classes)
+        cm.to(device)
+        pindices = preds.max(1).indices
+        pindices.to(device)
+        lindices = labels.max(1).indices
+        lindices.to(device)
+        for l, p in zip(lindices, pindices):
+            cm[p, l] += 1
+        return cm
