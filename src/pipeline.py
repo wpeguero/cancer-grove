@@ -69,9 +69,9 @@ def _main():
     trainer2 = Trainer(model2, opt2, loss2)
     trainer3 = Trainer(model3, opt3, loss3)
     # Training and saving models
-    trainer1.train(train_loader, 60, gpu=True)
-    trainer2.train(train_loader, 60, gpu=True)
-    trainer3.train(train_loader, 60, gpu=True)
+    trainer1.train(train_loader, 80, gpu=True)
+    trainer2.train(train_loader, 80, gpu=True)
+    trainer3.train(train_loader, 80, gpu=True)
 
     trained_model1 = trainer1.get_model()
     torch.save(trained_model1.state_dict(), "models/inceptionv4_final.pt")
