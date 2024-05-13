@@ -4,15 +4,91 @@ Contains all of the custom environments for building machine learning
 models.
 """
 
-from torchrl.envs import CatTensors, EnvBase, Transform, TranformedEnv, UnsqueezeTransform
-from torchrl.data import BoundedTensorSpec, CompositeSpec, UnboundedContinuousTesnorSpec
-import torch
-from tensordict import TensorDict, TensorDictBase
+from collections import defaultdict
+from typing import Optional
 
+import torch
+from torch import nn
+
+import matplotlib.pyplot as plt
+
+import numpy as np
+
+from torchrl.envs import CatTensors, EnvBase, Transform, TransformedEnv, UnsqueezeTransform
+from torchrl.envs.utils import check_env_specs, step_mdp
+from torchrl.data import BoundedTensorSpec, CompositeSpec, UnboundedContinuousTensorSpec
+
+from tensordict import TensorDict, TensorDictBase
+from tensordict.nn import TensorDictModule
+
+DEFAULT_X = np.pi
+DEFAULT_Y = 1.0
+bs = 32 #batch size
+
+#TODO: Add transforms so that the observations can be picked up
 def _main():
     """Test classes."""
-    pass
+    env = Pendulum()
+    net = nn.Sequential(
+            nn.LazyLinear(64),
+            nn.Tanh(),
+            nn.LazyLinear(64),
+            nn.Tanh(),
+            nn.LazyLinear(64),
+            nn.Tanh(),
+            nn.LazyLinear(1)
+            )
+    policy = TensorDictModule(
+            net,
+            in_keys=["observation"],
+            out_keys=["action"]
+            )
 
+    opt = torch.optim.Adam(policy.parameters(), lr=2e-3)
+    steps = range(20_000 // bs)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(opt, 20_000)
+    logs = defaultdict(list)
+
+    for _ in steps:
+        init_td = env.reset(env.gen_params(batch_size=[bs]))
+        print("init_td\n{}".format(init_td))
+        print("\npolicy:\n{}".format(policy))
+        rollout = env.rollout(100, policy, tensordict=init_td, auto_reset=False)
+        traj_return = rollout["next", "reward"].mean()
+        (-traj_return).backward()
+        gn = torch.nn.utils.clip_grad_norm_(net.parameters(), 1.0)
+        opt.step()
+        opt.zero_grad()
+        logs['return'].append(traj_return.item())
+        logs['last_reward'].append(rollout[..., -1]['next', 'reward'].mean().item())
+        scheduler.step()
+    plot_train_data(logs)
+
+
+def plot_train_data(logs):
+    with plt.ion():
+        plt.figure(figsize(10, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(logs['return'])
+        plt.title('returns')
+        plt.xlabel('iteration')
+        plt.subplot(1, 2, 2)
+        plt.plot(logs['last_reward'])
+        plt.title('last reward')
+        plt.xlabel('iteration')
+        plt.show()
+
+def simple_rollout(env:EnvBase, steps:int=100):
+    #Preallocate:
+    data = TensorDict({}, [steps])
+    #reset
+    _data = env.reset()
+    for i in range(steps):
+        _data["action"] = env.action_spec.rand()
+        _data = env.step(_data)
+        data[i] = _data
+        _data = step_mdp(_data, keep_other=True)
+    return data
 
 def angle_normalize(x):
     return ((x + torch.pi) % (2 * torch.pi)) - torch.pi
@@ -24,7 +100,7 @@ def make_composite_from_td(td:TensorDict):
     """
     composite = CompositeSpec(
             {
-                key:make_composite_from_td(tensor) if isinstance(tensor, TensorDictBase) else UnboundedContinuousTesnorSpec(dtype=tensor.dtype, device=tensor.device, shape=tensor.shape) for key, tensor in td.items()
+                key:make_composite_from_td(tensor) if isinstance(tensor, TensorDictBase) else UnboundedContinuousTensorSpec(dtype=tensor.dtype, device=tensor.device, shape=tensor.shape) for key, tensor in td.items()
                 },
             shape=td.shape
             )
@@ -41,10 +117,10 @@ class Pendulum(EnvBase):
     def __init__(self, td_params=None, seed=None, device='cpu'):
         if td_params is None:
             td_params = self.gen_params()
-        super(EnvBase, self).__init__(device=device, batch_size=[])
+        super().__init__(device=device, batch_size=[])
         self._make_spec(td_params)
         if seed is None:
-            seed = torch.empty((, dtype=torch.int64)).random_().item()
+            seed = torch.empty((), dtype=torch.int64).random_().item()
         self.set_seed(seed)
 
     @staticmethod
@@ -57,13 +133,13 @@ class Pendulum(EnvBase):
         length = tdict['params', 'l'] # Length of bar
         dt = tdict['params', 'dt'] # Small changes in time
 
-        u = tdict['action'].unsqueeze(-1)
+        u = tdict['action'].squeeze(-1)
         u = u.clamp(-tdict['params', 'max_torque'], tdict['params', 'max_torque'])
 
         costs = angle_normalize(theta) ** 2 + 0.1 * theta_dot ** 2 + 0.001 * (u**2)
 
         new_theta_dot = (theta_dot + (3 * gravity / (2 * length) * theta.sin() + 3.0 / (mass * length ** 2) * u) * dt)
-        new_thead_dot = new_theta_dot.clamp(-tdict['params', 'max_speed'], tdict['params', 'max_speed'])
+        new_theta_dot = new_theta_dot.clamp(-tdict['params', 'max_speed'], tdict['params', 'max_speed'])
         new_theta = theta + new_theta_dot * dt
         reward = -costs.view(*tdict.shape, 1)
         done = torch.zeros_like(reward, dtype=torch.bool)
@@ -71,7 +147,7 @@ class Pendulum(EnvBase):
                 {
                     'theta':new_theta,
                     'theta_dot':new_theta_dot,
-                    'params':tensordict['params'],
+                    'params':tdict['params'],
                     'reward':reward,
                     'done':done
                     },
@@ -127,11 +203,12 @@ class Pendulum(EnvBase):
         self.state_spec = self.observation_spec.clone()
         self.action_spec = BoundedTensorSpec(
                 low=-td_params['params', 'max_torque'],
-                high=td_param['params', 'max_torque'],
+                high=td_params['params', 'max_torque'],
                 shape=(1,),
                 dtype=torch.float32
                 )
-        self.reward_spec = UnboundedContinuousTesnorSpec(shape=(*td_params.shape, 1))
+        self.reward_spec = UnboundedContinuousTensorSpec(shape=(*td_params.shape, 1))
+        return self
 
     def _set_seed(self, seed: Optional[int]):
         rng = torch.manual_seed(seed)
@@ -147,7 +224,7 @@ class Pendulum(EnvBase):
                 {
                     'params':TensorDict(
                         {
-                            'max_speed': 8,
+                            'max_speed': 8.0,
                             'max_torque':2.0,
                             'dt':0.05,
                             'g':g,
@@ -159,12 +236,12 @@ class Pendulum(EnvBase):
                     },
                 []
                 )
-        if batch_size:
+        if batch_size is not None:
             td = td.expand(batch_size).contiguous()
             return td
 
 
-class HangmanEnvironment(torchrl.envs.EnvBase):
+class HangmanEnvironment(EnvBase):
     """Pytorch Implementation of the Hangman Environment.
 
     This is an implementation based on the TensorFlow Hangman
@@ -180,7 +257,7 @@ class HangmanEnvironment(torchrl.envs.EnvBase):
         """Init the class."""
         super().__init__(device=device, batch_size=[])
 
-    def _step(self, td:tensordict.TensorDictBase):
+    def _step(self, td:TensorDictBase):
         """Compute the Next Step for the actor.
 
         Parameters
