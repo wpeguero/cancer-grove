@@ -24,7 +24,7 @@ from torch import optim, nn
 from torch.utils import data
 from torchvision import datasets, transforms
 
-from models import CustomCNN, AlexNet, InceptionStem, InceptionA, InceptionB, InceptionC, ReductionA, ReductionB, InceptionV4
+from models import CustomCNN, AlexNet, InceptionStem, InceptionA, InceptionB, InceptionC, ReductionA, ReductionB, InceptionV4, TutorialNet
 from datasets import DICOMSet
 from trainers import Trainer, VERSION
 import models
@@ -32,6 +32,7 @@ import models
 img_size = (512, 512)
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
+
 STANDARD_IMAGE_TRANSFORMS = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize(img_size, antialias=True),
@@ -41,44 +42,28 @@ STANDARD_IMAGE_TRANSFORMS = transforms.Compose([
 
 def _main():
     """Test the new functions."""
-    fn__train = "data/CMMD-Set/valid_set.csv"
-    train = pl.read_csv(fn__train) # Need to transform column to numerical representation
-    # Transform categorical into numerical
-    with open('data/CMMD-Set/label.json', 'r') as fp:
-        label = json.load(fp)
-        fp.close
-    train = train.with_columns(pl.col('classification').replace(label, default=None))
-    # Transform and load the datasets
+    dir_train = "data/images/"
     cat_trans = create_target_transform(2)
-    train_set = DICOMSet(train, label_col='classification', img_col='path', image_transforms=STANDARD_IMAGE_TRANSFORMS, categorical_transforms=cat_trans)
-    train_loader = data.DataLoader(train_set, shuffle=True, batch_size=32, num_workers=8)
+    img_set = datasets.ImageFolder(root=dir_train, transform=STANDARD_IMAGE_TRANSFORMS, target_transform=cat_trans)
+    train_size = int(0.7*len(img_set))
+    val_size = len(img_set) - train_size
+    train_set, val_set = data.random_split(img_set, [train_size, val_size])
+    train_loader = data.DataLoader(train_set, batch_size=64, shuffle=True, num_workers=4)
+    val_loader = data.DataLoader(val_set, batch_size=64, shuffle=True, num_workers=4)
     #Loading the models
     model1 = InceptionV4(2, 1)
-    model2 = CustomCNN(1, 2)
-    model3 = AlexNet(1, 2)
     #Loading optimizers
-    opt1 = optim.SGD(model1.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
-    opt2 = optim.SGD(model2.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
-    opt3 = optim.SGD(model3.parameters(), lr=0.003, weight_decay=0.005, momentum=0.9)
+    opt1 = optim.Adam(model1.parameters(), lr=0.003)
     #Loading the Losses
     loss1 = nn.BCELoss()
-    loss2 = nn.BCELoss()
-    loss3 = nn.BCELoss()
     #Loading the Trainers
     trainer1 = Trainer(model1, opt1, loss1)
-    trainer2 = Trainer(model2, opt2, loss2)
-    trainer3 = Trainer(model3, opt3, loss3)
     # Training and saving models
-    trainer1.train(train_loader, 80, gpu=True)
-    trainer2.train(train_loader, 80, gpu=True)
-    trainer3.train(train_loader, 80, gpu=True)
+    trainer1.train(train_loader, 160, gpu=True)
 
     trained_model1 = trainer1.get_model()
-    torch.save(trained_model1.state_dict(), "models/inceptionv4_final.pt")
-    trained_model2 = trainer2.get_model()
-    torch.save(trained_model2.state_dict(), "models/customcnn_final.pt")
-    trained_model3 = trainer3.get_model()
-    torch.save(trained_model3.state_dict(), "models/alexnet_final.pt")
+    trainer1.test(trained_model1, val_loader, classes=('cat', 'loaf'),gpu=True)
+    torch.save(trained_model1.state_dict(), "models/inceptionv4_catloaf.pt")
 
 
 def split_set(df:pl.DataFrame, train_size:float=0.0, test_size:float=0.0, valid_size:float=0.0):
