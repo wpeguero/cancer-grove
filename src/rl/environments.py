@@ -11,21 +11,22 @@ import torch
 from torch import nn
 
 import matplotlib.pyplot as plt
-
 import numpy as np
 
 from torchrl.envs import CatTensors, EnvBase, Transform, TransformedEnv, UnsqueezeTransform
+from torchrl.envs.transforms.transforms import _apply_to_composite
 from torchrl.envs.utils import check_env_specs, step_mdp
 from torchrl.data import BoundedTensorSpec, CompositeSpec, UnboundedContinuousTensorSpec
 
 from tensordict import TensorDict, TensorDictBase
 from tensordict.nn import TensorDictModule
 
+from src.rl.transforms import SineTransform, CosineTransform
+
 DEFAULT_X = np.pi
 DEFAULT_Y = 1.0
 bs = 32 #batch size
 
-#TODO: Add transforms so that the observations can be picked up
 def _main():
     """Test classes."""
     env = Pendulum()
@@ -38,6 +39,22 @@ def _main():
             nn.Tanh(),
             nn.LazyLinear(1)
             )
+    env = TransformedEnv(
+            env,
+            UnsqueezeTransform(
+                unsqueeze_dim=-1,
+                in_keys=['theta', 'theta_dot'],
+                in_keys_inv=['theta', 'theta_dot']
+                )
+            )
+    t_sin = SineTransform(in_keys=['theta'], out_keys=['sine'])
+    t_cos = CosineTransform(in_keys=['theta'], out_keys=['cosine'])
+    env.append_transform(t_sin)
+    env.append_transform(t_cos)
+    cat_transform = CatTensors(
+            in_keys=['sine', 'cosine', 'theta_dot'], dim=-1, out_key='observation', del_keys=False
+            )
+    env.append_transform(cat_transform)
     policy = TensorDictModule(
             net,
             in_keys=["observation"],
@@ -51,8 +68,6 @@ def _main():
 
     for _ in steps:
         init_td = env.reset(env.gen_params(batch_size=[bs]))
-        print("init_td\n{}".format(init_td))
-        print("\npolicy:\n{}".format(policy))
         rollout = env.rollout(100, policy, tensordict=init_td, auto_reset=False)
         traj_return = rollout["next", "reward"].mean()
         (-traj_return).backward()
@@ -67,7 +82,7 @@ def _main():
 
 def plot_train_data(logs):
     with plt.ion():
-        plt.figure(figsize(10, 5))
+        plt.figure(figsize=(10, 5))
         plt.subplot(1, 2, 1)
         plt.plot(logs['return'])
         plt.title('returns')
@@ -266,6 +281,7 @@ class HangmanEnvironment(EnvBase):
             Contains the data required for calculating the next step.
         """
         pass
+
 
 
 if __name__ == "__main__":
