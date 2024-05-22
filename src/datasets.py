@@ -154,6 +154,26 @@ class DICOMSet(data.Dataset):
         slice = slice[..., np.newaxis]
         return slice
 
+    @staticmethod
+    def extract_metadata(dicom_file, cols:list[str]) -> dict:
+        """Extract metadata from the DICOM file.
+
+        Parameters
+        ----------
+        dicom_file
+            DICOM file containing the desired metadata and image.
+
+        cols : list
+            labels of the metadata contained within the DICOM file.
+
+        Returns
+        -------
+        Dictionary
+            Contains the label from the columns and the associated
+            value.
+        """
+        return {str(col):dicom_file[str(col)].value for col in cols}
+
 
 if __name__ == "__main__":
     _main()
