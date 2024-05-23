@@ -5,17 +5,20 @@ These functions are set to provide a list of paths to images, organize
 the files based on desired categories found within the image path, and
 some helpful transformations from pytorch.
 """
+from collections import defaultdict
 
 
 import polars as pl
 import numpy as np
+import torch
 from torchvision import transforms
+
+img_size = (512, 512)
 
 STANDARD_IMAGE_TRANSFORMS = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize(img_size, antialias=True),
         transforms.Grayscale(num_output_channels=1),
-        transforms.Normalize((0.5), (0.5))
         ])
 
 def split_set(df:pl.DataFrame, train_size:float=0.0, test_size:float=0.0, valid_size:float=0.0):
@@ -154,41 +157,6 @@ def create_target_transform(n_class:int, val:int=1):
     """
     target_transform = transforms.Lambda(lambda y: torch.zeros(n_class, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=val))
     return target_transform
-
-def extract_metadata(root:str, cols:list=[]):
-    """Extract the metadata from the DICOM FILE.
-
-    Extracts the data from DICOM files based on the list of labels
-    written, collects the paths of all files from the directory and
-    places the data within a Polars DataFrame.
-
-    Parameters
-    ----------
-    root : str
-        The main directory containing the data
-
-    cols : list
-        list of features found within the dicom file.
-
-    Returns
-    -------
-    Polars DataFrame
-        Dataframe containing all of the desired metadata.
-    """
-    files = get_file_paths(root)
-    dset = list()
-    for file in files:
-        if '.dcm' in file:
-            file = file[:-2]
-            dcimg = dcmread(file)
-            datapoint = { str(col):dcimg[str(col)].value for col in cols }
-            datapoint['unique id'] = str(str(dcimg['PatientID'].value) + '-' + str(dcimg['InstanceNumber'].value))
-            datapoint['path'] = file
-            dset.append(
-                    datapoint
-                    )
-    df = pl.DataFrame(dset)
-    return df
 
 def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
     """Convert the string column to categorical column.
