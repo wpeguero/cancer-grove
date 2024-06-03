@@ -1,4 +1,5 @@
 """Useful Functions for Statistical Analysis."""
+import math
 
 import torch
 from torch.utils import data
@@ -72,11 +73,86 @@ def calculate_image_t_test(dataset:data.Dataset, labels:dict, ci:int=0.95): #two
     var2 = variances['loaf']
     n1 = counts['cat']
     n2 = counts['loaf']
-    t_value = (m1-m2)/ torch.sqrt((var1/n1) + (var2/n2))
+    t_score = (m1-m2)/ torch.sqrt((var1/n1) + (var2/n2))
     df_numerator = torch.square((torch.square(var1)/n1) + (torch.square(var2)/n2))
     df_denominator = (torch.square(torch.square(var1)) / ((n1**2)*(n1-1))) + (torch.square(torch.square(var2)) / ((n2**2)*(n2-1)))
-    df = df_numerator / df_denominator
-    #t = scipy.stats.t.ppf(ci, df)
-    print('t value: ', t_value)
-    print('degrees of freedom: {}'.format(df))
+    df = math.ceil(df_numerator / df_denominator)
+    t = scipy.stats.t.ppf(ci, df)
+    base_stats.update({'t value':t_value, 't':t, 'degrees of freedom':df})
+    if t_value < t:
+        base_stats.update({'significance':True})
+    else:
+        base_stats.update({'significance':False})
+    print(base_stats)
     return base_stats
+
+def calculate_t_score(sample1, sample2):
+    """Calculate the t score.
+
+    Calculates the t score for two sample t-test of unequal variance.
+
+    Parameters
+    ----------
+    sample1
+        The first sample.
+    sample2
+        The second sample.
+
+    Returns
+    -------
+    t_score
+        The calculated t-value.
+    """
+    # Calculate basic stats for sample1
+    mean1 = torch.mean(sample1)
+    std1 = torch.std(sample1)
+    var1 = torch.var(sample1)
+    # Calculate basic stats for sample2
+    mean2 = torch.mean(sample2)
+    std2 = torch.std(sample2)
+    var2 = torch.var(sample2)
+    # Calculate the t score
+    t_score = (mean1-mean2) / torch.sqrt((var1 / n1) + (var2 / n2))
+    return t_score
+
+def calculate_df_unequal_variance(sample1, sample2):
+    """Calculate the degrees of freedom.
+
+    Uses the two samples to calculate the degrees of freedom for a
+    two sample t-test of unequal variance.
+
+    Parameters
+    ----------
+    sample1
+        The first sample for calculating the degrees of freedom
+    sample2
+        The second sample for calculating the degrees of freedom.
+
+    Returns
+    -------
+    df : int
+        Degrees of freedom.
+    """
+    # Calculate basic stats for sample1
+    var1 = torch.var(sample1)
+    n1 = len(sample1)
+    # Calculate basic stats for sample2
+    var2 = torch.var(sample2)
+    n2 = len(sample2)
+    # Calculate the degrees of freedom
+    df_numerator = torch.square((torch.square(var1)/n1) + (torch.square(var2)/n2))
+    df_denominator = (torch.square(torch.square(var1)) / ((n1**2)*(n1-1))) + (torch.square(torch.square(var2)) / ((n2**2)*(n2-1)))
+    df = math.ceil(df_numerator / df_denominator)
+    return df
+
+def calculate_p_value(t_score, df):
+    """Calculate the p value to accept or reject the null hypothesis."""
+    p_value = 2 * (1 - scipy.stats.t.cdf(torch.abs(t_score), df))
+    return p_value
+
+def interpret_p_value(p_value, alpha=0.01):
+    """Accept or reject the null hypothesis."""
+    if p_value < alpha:
+        return True
+    else:
+        return False
