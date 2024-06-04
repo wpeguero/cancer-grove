@@ -6,8 +6,11 @@ the files based on desired categories found within the image path, and
 some helpful transformations from pytorch.
 """
 from collections import defaultdict
+from PIL import Image
+import os
 
 
+from pydicom import dcmread
 import polars as pl
 import numpy as np
 import torch
@@ -332,9 +335,11 @@ def get_file_paths(root:str, filename:str=None) -> list[str]:
         root directory.
     """
     all_files = list()
+    all_files.append('paths\n')
     for path, subdirs, files in os.walk(root):
         for name in files:
-            all_files.append(os.path.join(path, name, '\n'))
+            fpath = os.path.join(path, name, '\n')
+            all_files.append(fpath)
     if filename != None:
         with open(filename, 'w') as fp:
             fp.writelines(all_files)
@@ -440,6 +445,14 @@ def add_label_from_path(root:str, search_labels:dict[str]) -> pl.DataFrame:
     df_new = pl.DataFrame(mod_data)
     df_merged = df.join(df_new,on="path", how="inner")
     return df_merged
+
+def show_image_from_dicom(filename:str):
+    """Show the image from a dicom file."""
+    dcmfile = dcmread(filename)
+    img_array = dcmfile.pixel_array
+    img = Image.fromarray(np.uint8(img_array))
+    img.show()
+
 
 activation={}
 def get_activation(name):
