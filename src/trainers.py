@@ -1,11 +1,13 @@
 """Set of Classes for Training Machine Learning Models."""
+
 import torch
 from torch import nn, optim
 from torch.utils import data
 
-with open('src/model_version.txt', 'r') as fp:
+with open("src/model_version.txt", "r") as fp:
     VERSION = int(fp.read())
     fp.close()
+
 
 class Trainer:
     """Class for training pytorch machine learning models.
@@ -24,7 +26,7 @@ class Trainer:
         The chosen loss to compare the prediction and the target.
     """
 
-    def __init__(self, model:nn.Module, optimizer:optim.Optimizer, loss):
+    def __init__(self, model: nn.Module, optimizer: optim.Optimizer, loss):
         """Initialize the class."""
         self.model = model
         self.opt = optimizer
@@ -40,7 +42,7 @@ class Trainer:
         """
         return self.model
 
-    def train(self, trainloader:data.DataLoader, epochs:int, gpu=False):
+    def train(self, trainloader: data.DataLoader, epochs: int, gpu=False):
         """Train the machine learning model.
 
         Uses the given model, optimizer, and loss provided when the
@@ -61,14 +63,18 @@ class Trainer:
         gpu : bool
             Determines whether the gpu is used to train dataset.
         """
-        if  gpu == True:
+        if gpu:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         else:
             device = torch.device("cpu")
         print("The model will be running on ", device, "device")
         self.model.to(device)
         steps_per_epoch = len(trainloader.dataset) // trainloader.batch_size
-        print("Starting Training of {} version {}.".format(self.model.__class__.__name__, VERSION))
+        print(
+            "Starting Training of {} version {}.".format(
+                self.model.__class__.__name__, VERSION
+            )
+        )
         for epoch in range(epochs):
             running_loss = 0.0
             self.model.train(True)
@@ -84,17 +90,25 @@ class Trainer:
                 loss.backward()
                 self.opt.step()
 
-                #_, ipredicted = torch.max(outputs.data, 1)
-                ipredicted= outputs.max(1).indices
-                #_, lindices = torch.max(labels.data, 1)
+                # _, ipredicted = torch.max(outputs.data, 1)
+                ipredicted = outputs.max(1).indices
+                # _, lindices = torch.max(labels.data, 1)
                 lindices = labels.max(1).indices
                 total += labels.size(0)
                 correct += (ipredicted == lindices).sum().item()
                 running_loss += loss.item()
-            print(f'[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
+            print(
+                f"[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}"
+            )
 
     @staticmethod
-    def test(model, testloader:data.DataLoader, classes:tuple, gpu:bool=False, version:int=0):
+    def test(
+        model,
+        testloader: data.DataLoader,
+        classes: tuple,
+        gpu: bool = False,
+        version: int = 0,
+    ):
         """Test the model's ability to classify on a never before seen dataset.
 
         Parameters
@@ -107,14 +121,18 @@ class Trainer:
             Determines whether to send the model and data to the gpu
             or the cpu.
         """
-        if  gpu == True:
+        if gpu:
             device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         else:
             device = torch.device("cpu")
         model.to(device)
         correct_pred = {classname: 0 for classname in classes}
         total_pred = {classname: 0 for classname in classes}
-        results = list("Accuracy Results on test set for Machine Learning Model {}\n".format(model.__class__.__name__))
+        results = list(
+            "Accuracy Results on test set for Machine Learning Model {}\n".format(
+                model.__class__.__name__
+            )
+        )
 
         with torch.no_grad():
             for images, labels in testloader:
@@ -129,9 +147,12 @@ class Trainer:
                     total_pred[classes[label]] += 1
         for classname, correct_count in correct_pred.items():
             accuracy = 100 * float(correct_count) / total_pred[classname]
-            results.append(f'Accuracy for class: {classname:5s} is {accuracy:.1f}%\n')
-            print(f'Accuracy for class: {classname:5s} is {accuracy:.1f}%')
-        with open('data/{}_results_version_{}.txt'.format(model.__class__.__name__, version), 'w') as fp:
+            results.append(f"Accuracy for class: {classname:5s} is {accuracy:.1f}%\n")
+            print(f"Accuracy for class: {classname:5s} is {accuracy:.1f}%")
+        with open(
+            "data/{}_results_version_{}.txt".format(model.__class__.__name__, version),
+            "w",
+        ) as fp:
             fp.writelines(results)
             fp.close()
 
@@ -157,6 +178,6 @@ class Trainer:
         pindices.to(device)
         lindices = labels.max(1).indices
         lindices.to(device)
-        for l, p in zip(lindices, pindices):
-            cm[p, l] += 1
+        for lindex, pindex in zip(lindices, pindices):
+            cm[pindex, lindex] += 1
         return cm

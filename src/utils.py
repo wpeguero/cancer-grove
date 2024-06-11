@@ -5,26 +5,34 @@ These functions are set to provide a list of paths to images, organize
 the files based on desired categories found within the image path, and
 some helpful transformations from pytorch.
 """
-from collections import defaultdict
-from PIL import Image
+
 import os
+from collections import defaultdict
 
-
-from pydicom import dcmread
-import polars as pl
 import numpy as np
+import polars as pl
 import torch
+from PIL import Image
+from pydicom import dcmread
 from torchvision import transforms
 
 img_size = (512, 512)
 
-STANDARD_IMAGE_TRANSFORMS = transforms.Compose([
+STANDARD_IMAGE_TRANSFORMS = transforms.Compose(
+    [
         transforms.ToTensor(),
         transforms.Resize(img_size, antialias=True),
         transforms.Grayscale(num_output_channels=1),
-        ])
+    ]
+)
 
-def split_set(df:pl.DataFrame, train_size:float=0.0, test_size:float=0.0, valid_size:float=0.0):
+
+def split_set(
+    df: pl.DataFrame,
+    train_size: float = 0.0,
+    test_size: float = 0.0,
+    valid_size: float = 0.0,
+):
     """Split the dataset into train, test, and validation sets.
 
     Splits a polars DataFrame into pieces or resamples the DataFrame
@@ -46,7 +54,9 @@ def split_set(df:pl.DataFrame, train_size:float=0.0, test_size:float=0.0, valid_
         value between 0.00 and 1.00 which will be used to determine
         the validation set size.
     """
-    assert sum([train_size, test_size, valid_size]) <= 1.00, "The sum of Train, Test, and Valid sets should be equal to 100%."
+    assert (
+        sum([train_size, test_size, valid_size]) <= 1.00
+    ), "The sum of Train, Test, and Valid sets should be equal to 100%."
     df.sample(fraction=1, shuffle=True, seed=42)
     if sum([train_size, test_size, valid_size]) == 0.0:
         return df
@@ -86,7 +96,8 @@ def split_set(df:pl.DataFrame, train_size:float=0.0, test_size:float=0.0, valid_
     else:
         pass
 
-def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
+
+def change_column_names(df: pl.DataFrame) -> pl.DataFrame:
     """Change the column name by replacing space with underline and decapitalize words.
 
     Extracts all of the columns, changes all capitalized characters to
@@ -113,7 +124,8 @@ def change_column_names(df:pl.DataFrame) -> pl.DataFrame:
     df = df.rename(col_changes)
     return df
 
-def update_version(filename:str, new_model:bool=False):
+
+def update_version(filename: str, new_model: bool = False):
     """Save the model version and update it.
 
     Parameters
@@ -121,8 +133,8 @@ def update_version(filename:str, new_model:bool=False):
     filename : str
         path to file containing the version.
     """
-    if new_model == True:
-        with open(filename, 'r+') as fp:
+    if new_model is True:
+        with open(filename, "r+") as fp:
             cv = int(fp.read())
             nv = cv + 1
             fp.seek(0)
@@ -130,7 +142,7 @@ def update_version(filename:str, new_model:bool=False):
             fp.write(str(nv))
             fp.close()
     else:
-        with open(filename, 'r+') as fp:
+        with open(filename, "r+") as fp:
             cv = int(fp.read())
             nv = 1
             fp.seek(0)
@@ -138,7 +150,8 @@ def update_version(filename:str, new_model:bool=False):
             fp.write(str(nv))
             fp.close()
 
-def create_target_transform(n_class:int, val:int=1):
+
+def create_target_transform(n_class: int, val: int = 1):
     """Create the transformation function for the label data.
 
     Uses the pytorch Lambda transform to recreate lable data as a
@@ -158,10 +171,15 @@ def create_target_transform(n_class:int, val:int=1):
     pytorch Transform
         The transform function for the label data.
     """
-    target_transform = transforms.Lambda(lambda y: torch.zeros(n_class, dtype=torch.float).scatter_(dim=0, index=torch.tensor(y), value=val))
+    target_transform = transforms.Lambda(
+        lambda y: torch.zeros(n_class, dtype=torch.float).scatter_(
+            dim=0, index=torch.tensor(y), value=val
+        )
+    )
     return target_transform
 
-def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
+
+def convert_string_to_cat(df: pl.DataFrame, col: str | list) -> pl.DataFrame:
     """Convert the string column to categorical column.
 
     Uses polars' casting capabilities to transform either one or
@@ -196,16 +214,17 @@ def convert_string_to_cat(df:pl.DataFrame, col:str|list) -> pl.DataFrame:
     >>> df = df.with_columns(pl.col('cat').to_physical)
 
     """
-    if type(col) == str:
+    if isinstance(col, str):
         df = df.with_columns(pl.col(col).cast(pl.Categorical))
-    elif type(col) == list:
+    elif isinstance(col, list):
         df = df.with_columns(list(pl.col(c).cast(pl.Categorical) for c in col))
     else:
         print("Cannot process type: {}".format(type(col)))
         exit()
     return df
 
-def load_image(filename:str, size:tuple|int) -> np.ndarray:
+
+def load_image(filename: str, size: tuple | int) -> np.ndarray:
     """Load the image based on the path.
 
     Parameters
@@ -225,23 +244,24 @@ def load_image(filename:str, size:tuple|int) -> np.ndarray:
         dimensions (width, height, colors).
 
     """
-    img = Image.open( filename ).convert('L')
-    if type(size) == int:
+    img = Image.open(filename).convert("L")
+    if isinstance(size, int):
         tsize = (size, size)
         img = img.resize(tsize)
     else:
         img = img.resize(size)
     img.load()
-    if 'mask' in filename:
-        data = np.asarray( img ).astype('int32')
+    if "mask" in filename:
+        data = np.asarray(img).astype("int32")
     else:
-        raw_data = np.asarray( img ).astype('float32')
+        raw_data = np.asarray(img).astype("float32")
         data = (raw_data - np.min(raw_data)) / (np.max(raw_data) - np.min(raw_data))
     if data.ndim == 2:
         data = data[np.newaxis, ...]
     else:
         pass
     return data
+
 
 def merge_dictionaries(*dictionaries) -> dict:
     """Merge n number of dictionaries.
@@ -269,7 +289,10 @@ def merge_dictionaries(*dictionaries) -> dict:
                 mdictionary[key].append(value)
     return mdictionary
 
-def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.DataFrame:
+
+def balance_data(
+    df: pl.DataFrame, columns: list = [], sample_size: int = None
+) -> pl.DataFrame:
     """Balance data for model training.
 
     Splits the dataset into groups based on the categorical
@@ -298,7 +321,7 @@ def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.Da
 
     """
     assert sample_size != 0, "The sample size cannot be zero."
-    if sample_size == None:
+    if sample_size is None:
         sample_size = len(df)
     else:
         pass
@@ -308,12 +331,14 @@ def balance_data(df:pl.DataFrame, columns:list=[],sample_size:int=None) -> pl.Da
     else:
         groups = df.group_by(columns)
         df.filter(
-                pl.int_range(0, pl.count()).shuffle().over(columns) <= (sample_size / len(groups.count()))
-                )
+            pl.int_range(0, pl.count()).shuffle().over(columns)
+            <= (sample_size / len(groups.count()))
+        )
         df_balanced = df
     return df_balanced
 
-def get_file_paths(root:str, filename:str=None) -> list[str]:
+
+def get_file_paths(root: str, filename: str = None) -> list[str]:
     """Get the path to all files within a folder.
 
     Search through a root directory to extract the path of all files
@@ -335,18 +360,19 @@ def get_file_paths(root:str, filename:str=None) -> list[str]:
         root directory.
     """
     all_files = list()
-    all_files.append('paths\n')
+    all_files.append("paths\n")
     for path, subdirs, files in os.walk(root):
         for name in files:
-            fpath = os.path.join(path, name, '\n')
+            fpath = os.path.join(path, name, "\n")
             all_files.append(fpath)
-    if filename != None:
-        with open(filename, 'w') as fp:
+    if filename is not None:
+        with open(filename, "w") as fp:
             fp.writelines(all_files)
             fp.close()
     return all_files
 
-def rescale_image(img:np.ndarray) -> np.ndarray:
+
+def rescale_image(img: np.ndarray) -> np.ndarray:
     """Rescale the image to a more manageable size.
 
     Changes the size of the image based on the length and
@@ -378,7 +404,8 @@ def rescale_image(img:np.ndarray) -> np.ndarray:
     img_mod = np.moveaxis(img_mod, 0, -1)
     return img_mod
 
-def gather_segmentation_images(filename:str, paths:str, id:str):
+
+def gather_segmentation_images(filename: str, paths: str, id: str):
     """Get all of the Images with Segmentations.
 
     Gathers all of the image slices together with the
@@ -401,7 +428,7 @@ def gather_segmentation_images(filename:str, paths:str, id:str):
         the unique identifier for the sample.
     """
     df = pl.read_csv(filename)
-    with open(paths, 'r') as fp:
+    with open(paths, "r") as fp:
         list__paths = fp.readlines()
         fp.close()
     for _, row in df.iter_rows():
@@ -409,7 +436,8 @@ def gather_segmentation_images(filename:str, paths:str, id:str):
         print(patient_folder)
         exit()
 
-def add_label_from_path(root:str, search_labels:dict[str]) -> pl.DataFrame:
+
+def add_label_from_path(root: str, search_labels: dict[str]) -> pl.DataFrame:
     """Add a label based on terms within paths.
 
     Loads a csv file and searches for specific terms found as keys
@@ -435,18 +463,19 @@ def add_label_from_path(root:str, search_labels:dict[str]) -> pl.DataFrame:
     mod_data = list()
     for row in df.iter_rows(named=True):
         for term, label in search_labels.items():
-            path = row['path']
+            path = row["path"]
             lpath = path.lower()
             lterm = term.lower()
             if lterm in lpath:
-                mod_data.append({"path":path, "type":label})
+                mod_data.append({"path": path, "type": label})
             else:
                 pass
     df_new = pl.DataFrame(mod_data)
-    df_merged = df.join(df_new,on="path", how="inner")
+    df_merged = df.join(df_new, on="path", how="inner")
     return df_merged
 
-def show_image_from_dicom(filename:str):
+
+def show_image_from_dicom(filename: str):
     """Show the image from a dicom file."""
     dcmfile = dcmread(filename)
     img_array = dcmfile.pixel_array
@@ -454,9 +483,13 @@ def show_image_from_dicom(filename:str):
     img.show()
 
 
-activation={}
+activation = {}
+
+
 def get_activation(name):
     """Extract the activation of a specific layer."""
+
     def hook(model, input, output):
         activation[name] = output.detach()
+
     return hook

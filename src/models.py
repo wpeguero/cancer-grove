@@ -6,42 +6,43 @@ This file will contain all of the actualized models
 created from the abstract model class(es) made within
 the base.py file.
 """
-import os
-import tracemalloc
-import re
+
 from math import floor
+
+import numpy as np
 
 # Current issue: Loss is not working properly during training process
 import torch
-from torch import nn
 import torchvision.transforms.functional as TF
-import numpy as np
-import polars as pl
+from torch import nn
+
+from utils import load_image
 
 img_size = (512, 512)
 mask_size = (512, 512)
 tsize = 8
 BATCH_SIZE = 4
 validate = False
-version=3
+version = 3
+
 
 def _main():
     model = nn.Sequential(
-            InceptionStem(3),
-            InceptionA(384),
-            ReductionA(384),
-            InceptionB(1024),
-            ReductionB(1024),
-            InceptionC(1536),
-            nn.Flatten(),
-            nn.AvgPool2d(kernel_size=3, stride=2),
-            nn.Dropout(0.8),
-            nn.Softmax(4)
-            )
+        InceptionStem(3),
+        InceptionA(384),
+        ReductionA(384),
+        InceptionB(1024),
+        ReductionB(1024),
+        InceptionC(1536),
+        nn.Flatten(),
+        nn.AvgPool2d(kernel_size=3, stride=2),
+        nn.Dropout(0.8),
+        nn.Softmax(4),
+    )
     exit()
     img = load_image("data/Dataset_BUSI_with_GT/benign/benign (1).png", img_size)
     img = torch.from_numpy(img)
-    #datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
+    # datapoint = np.asarray([img, np.array([1, 2, 3, 4])])
     model(img.unsqueeze(0))
 
 
@@ -62,7 +63,7 @@ class CustomCNN(nn.Module):
         The number of classifications within the dataset.
     """
 
-    def __init__(self, n_channels:int=1, n_classes:int=2):
+    def __init__(self, n_channels: int = 1, n_classes: int = 2):
         """Init the Class."""
         super(CustomCNN, self).__init__()
         assert n_classes > 1, "Number of classes must be greater than one."
@@ -159,49 +160,38 @@ class AlexNet(nn.Module):
         The number of channels of the image.
     """
 
-    def __init__(self, n_channels:int=1, n_classes:int=2):
+    def __init__(self, n_channels: int = 1, n_classes: int = 2):
         """Init the Class."""
         super(AlexNet, self).__init__()
         self.n_classes = n_classes
         self.n_channels = n_channels
         self.layer1 = nn.Sequential(
-                nn.Conv2d(n_channels, 96, kernel_size=11, stride=4, padding=0),
-                nn.BatchNorm2d(96),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=3, stride=2)
-                )
+            nn.Conv2d(n_channels, 96, kernel_size=11, stride=4, padding=0),
+            nn.BatchNorm2d(96),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
         self.layer2 = nn.Sequential(
-                nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
-                nn.BatchNorm2d(256),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=3, stride=2)
-                )
+            nn.Conv2d(96, 256, kernel_size=5, stride=1, padding=2),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
         self.layer3 = nn.Sequential(
-                nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(384),
-                nn.ReLU()
-                )
+            nn.Conv2d(256, 384, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(384),
+            nn.ReLU(),
+        )
         self.layer4 = nn.Sequential(
-                nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
-                nn.BatchNorm2d(256),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=3, stride=2)
-                )
+            nn.Conv2d(384, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2),
+        )
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Linear(50_176, 4096),
-                nn.ReLU()
-                )
-        self.fc2 = nn.Sequential(
-                nn.Dropout(0.5),
-                nn.Linear(4096, 4096),
-                nn.ReLU()
-                )
-        self.fc3 = nn.Sequential(
-                nn.Linear(4096, n_classes),
-                nn.Softmax(dim=1)
-                )
+        self.fc1 = nn.Sequential(nn.Dropout(0.5), nn.Linear(50_176, 4096), nn.ReLU())
+        self.fc2 = nn.Sequential(nn.Dropout(0.5), nn.Linear(4096, 4096), nn.ReLU())
+        self.fc3 = nn.Sequential(nn.Linear(4096, n_classes), nn.Softmax(dim=1))
 
     def forward(self, x):
         """Forward pass of the model."""
@@ -227,7 +217,7 @@ class DoubleConvolution(nn.Module):
 
     """
 
-    def __init__(self, in_channels:int, out_channels:int):
+    def __init__(self, in_channels: int, out_channels: int):
         """Initialize the DC class."""
         super(DoubleConvolution, self).__init__()
         self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, padding=1)
@@ -272,17 +262,19 @@ class UNet(nn.Module):
 
         # Calculate the Up Convolutions
         for feature in reversed(features):
-            self.uc.append(nn.ConvTranspose2d(2*feature, feature, kernel_size=2, stride=2))
-            self.uc.append(DoubleConvolution(2*feature, feature))
+            self.uc.append(
+                nn.ConvTranspose2d(2 * feature, feature, kernel_size=2, stride=2)
+            )
+            self.uc.append(DoubleConvolution(2 * feature, feature))
 
-        self.bottleneck = DoubleConvolution(features[-1], 2*features[-1])
+        self.bottleneck = DoubleConvolution(features[-1], 2 * features[-1])
         self.final_convolution = nn.Conv2d(features[0], out_channels, kernel_size=1)
 
     def forward(self, x):
         """Forward pass of u-net."""
         skip_connections = list()
         for down in self.downs:
-            x =down(x)
+            x = down(x)
             skip_connections.append(x)
             x = self.pool(x)
 
@@ -291,13 +283,13 @@ class UNet(nn.Module):
 
         for idx in range(0, len(self.uc), 2):
             x = self.uc[idx](x)
-            skip_connections = skip_connections[idx//2]
+            skip_connections = skip_connections[idx // 2]
 
             if x.shape != skip_connections.shape:
                 x = TF.resize(x, size=skip_connections.shape[2:])
 
             concat_skip = torch.cat((skip_connections, x), dim=1)
-            x = self.ups[idx+1](concat_skip)
+            x = self.ups[idx + 1](concat_skip)
 
         return self.final_convolution(x)
 
@@ -311,7 +303,7 @@ class TumorClassifier(nn.Module):
 
     """
 
-    def __init__(self, cat_input_length:int):
+    def __init__(self, cat_input_length: int):
         """Initialize the Module."""
         super(TumorClassifier, self).__init__()
         self.conv1 = nn.Conv2d(1, 64, kernel_size=3, stride=2)
@@ -337,7 +329,9 @@ class TumorClassifier(nn.Module):
         for i in range(1, floor(np.log2(cat_input_length)) + 1):
             if i - 1 == 0:
                 continue
-            self.catlinears.append(nn.Linear(int(cat_input_length), int(cat_input_length / 2)))
+            self.catlinears.append(
+                nn.Linear(int(cat_input_length), int(cat_input_length / 2))
+            )
             cat_input_length = cat_input_length / 2
         self.outlinear = nn.Linear(int(cat_input_length + 12), 2)
 
@@ -380,7 +374,7 @@ class TutorialNet(nn.Module):
         The number of classes.
     """
 
-    def __init__(self, in_channels:int=1, n_classes:int=2):
+    def __init__(self, in_channels: int = 1, n_classes: int = 2):
         """Init the Class."""
         super(TutorialNet, self).__init__()
         self.conv1 = nn.Conv2d(3, 6, kernel_size=5)
@@ -388,9 +382,9 @@ class TutorialNet(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
         self.conv2 = nn.Conv2d(6, 16, kernel_size=5)
         self.flatten = nn.Flatten()
-        self.fc1 = nn.Linear(250_000, 120) # 7744
+        self.fc1 = nn.Linear(250_000, 120)  # 7744
         self.fc2 = nn.Linear(120, 84)
-        self.fc3 = nn.Linear(84,n_classes)
+        self.fc3 = nn.Linear(84, n_classes)
 
     def forward(self, x):
         """Forward Pass of the model."""
@@ -412,29 +406,31 @@ class TutorialNet(nn.Module):
 class InceptionStem(nn.Module):
     """The Stem Section of the Inception Model Architecture."""
 
-    def __init__(self, in_channels:int=3):
+    def __init__(self, in_channels: int = 3):
         """Init the class."""
         super(InceptionStem, self).__init__()
         # Convolutions
-        self.conv1 = nn.Conv2d(in_channels, 32, kernel_size=3, stride=2, padding='valid')
-        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding='valid')
+        self.conv1 = nn.Conv2d(
+            in_channels, 32, kernel_size=3, stride=2, padding="valid"
+        )
+        self.conv2 = nn.Conv2d(32, 32, kernel_size=3, padding="valid")
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=0)
         ## Split 1
         ### Branch 1 (0 Convolutions in total)
         ### Branch 2 (1 Convolutions in total)
-        self.conv121 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding='valid')
+        self.conv121 = nn.Conv2d(64, 64, kernel_size=3, stride=2, padding="valid")
         ## Split 2
         ### Branch 1 (2 Convolutions in total)
         self.conv211 = nn.Conv2d(128, 64, kernel_size=3, padding=0)
-        self.conv212 = nn.Conv2d(64, 96, kernel_size=7, padding='valid')
+        self.conv212 = nn.Conv2d(64, 96, kernel_size=7, padding="valid")
         ### Branch 2 (4 Convolutions in total)
         self.conv221 = nn.Conv2d(128, 64, kernel_size=1, padding=0)
-        self.conv222 = nn.Conv2d(64, 64, kernel_size=(7,1), padding=0)
-        self.conv223 = nn.Conv2d(64, 64, kernel_size=(1,7), padding=0)
-        self.conv224 = nn.Conv2d(64, 96, kernel_size=3, padding='valid')
+        self.conv222 = nn.Conv2d(64, 64, kernel_size=(7, 1), padding=0)
+        self.conv223 = nn.Conv2d(64, 64, kernel_size=(1, 7), padding=0)
+        self.conv224 = nn.Conv2d(64, 96, kernel_size=3, padding="valid")
         ## Split 3
         ### Branch 1 (1 Convolutions in total)
-        self.conv311 = nn.Conv2d(192, 192, kernel_size=3, stride=2, padding='valid')
+        self.conv311 = nn.Conv2d(192, 192, kernel_size=3, stride=2, padding="valid")
         ###Branch 2 (0 Convolutions in total)
 
         # Batch Normalizations
@@ -511,7 +507,7 @@ class InceptionStem(nn.Module):
 class InceptionA(nn.Module):
     """The First Inception Block Within the Inception Network."""
 
-    def __init__(self, n_features:int):
+    def __init__(self, n_features: int):
         """Init the class."""
         super(InceptionA, self).__init__()
 
@@ -576,7 +572,7 @@ class InceptionA(nn.Module):
 class InceptionB(nn.Module):
     """The Second Inception Block Within the Inception Network."""
 
-    def __init__(self, n_features:int):
+    def __init__(self, n_features: int):
         """Init the class."""
         super(InceptionB, self).__init__()
         # Convolutions
@@ -586,14 +582,14 @@ class InceptionB(nn.Module):
         self.conv21 = nn.Conv2d(n_features, 384, kernel_size=1, padding=0)
         ## Branch 3 (3 in total)
         self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
-        self.conv32 = nn.Conv2d(192, 224, kernel_size=(1,7), padding=0)
-        self.conv33 = nn.Conv2d(224, 256, kernel_size=(1,7), padding=(0,6))
+        self.conv32 = nn.Conv2d(192, 224, kernel_size=(1, 7), padding=0)
+        self.conv33 = nn.Conv2d(224, 256, kernel_size=(1, 7), padding=(0, 6))
         ## Branch 4 (5 in total)
         self.conv41 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
-        self.conv42 = nn.Conv2d(192, 192, kernel_size=(1,7), padding=(0,0))
-        self.conv43 = nn.Conv2d(192, 224, kernel_size=(7,1), padding=(0,0))
-        self.conv44 = nn.Conv2d(224, 224, kernel_size=(1,7), padding=(0,6))
-        self.conv45 = nn.Conv2d(224, 256, kernel_size=(7,1), padding=(6,0))
+        self.conv42 = nn.Conv2d(192, 192, kernel_size=(1, 7), padding=(0, 0))
+        self.conv43 = nn.Conv2d(192, 224, kernel_size=(7, 1), padding=(0, 0))
+        self.conv44 = nn.Conv2d(224, 224, kernel_size=(1, 7), padding=(0, 6))
+        self.conv45 = nn.Conv2d(224, 256, kernel_size=(7, 1), padding=(6, 0))
 
         # Batch Normalizations
         self.bn11 = nn.BatchNorm2d(128)
@@ -655,7 +651,7 @@ class InceptionB(nn.Module):
 class InceptionC(nn.Module):
     """The Third Inception Block Within the Inception Network."""
 
-    def __init__(self, n_features:int):
+    def __init__(self, n_features: int):
         """Init the class."""
         super(InceptionC, self).__init__()
         # Convolutions
@@ -665,14 +661,14 @@ class InceptionC(nn.Module):
         self.conv21 = nn.Conv2d(n_features, 256, kernel_size=1, stride=2, padding=0)
         ## Branch 3 (3 in total)
         self.conv31 = nn.Conv2d(n_features, 384, kernel_size=1, padding=0)
-        self.conv32l = nn.Conv2d(384, 256, kernel_size=(1,3), stride=2, padding=(0,1))
-        self.conv32r = nn.Conv2d(384, 256, kernel_size=(3,1), stride=2, padding=(1,0))
+        self.conv32l = nn.Conv2d(384, 256, kernel_size=(1, 3), stride=2, padding=(0, 1))
+        self.conv32r = nn.Conv2d(384, 256, kernel_size=(3, 1), stride=2, padding=(1, 0))
         ## Branch 4 (5 in total)
         self.conv41 = nn.Conv2d(n_features, 384, kernel_size=1, padding=0)
-        self.conv42 = nn.Conv2d(384, 448, kernel_size=(1,3), padding=0)
-        self.conv43 = nn.Conv2d(448, 512, kernel_size=(3,1), padding=0)
-        self.conv44l = nn.Conv2d(512, 256, kernel_size=(3,1), stride=2, padding=(2,1))
-        self.conv44r = nn.Conv2d(512, 256, kernel_size=(1,3), stride=2, padding=(1,2))
+        self.conv42 = nn.Conv2d(384, 448, kernel_size=(1, 3), padding=0)
+        self.conv43 = nn.Conv2d(448, 512, kernel_size=(3, 1), padding=0)
+        self.conv44l = nn.Conv2d(512, 256, kernel_size=(3, 1), stride=2, padding=(2, 1))
+        self.conv44r = nn.Conv2d(512, 256, kernel_size=(1, 3), stride=2, padding=(1, 2))
 
         # Batch Normalizations
         self.bn11 = nn.BatchNorm2d(256)
@@ -734,17 +730,19 @@ class InceptionC(nn.Module):
 class ReductionA(nn.Module):
     """First Reduction Block from the Inception Neural Network V4."""
 
-    def __init__(self, n_features:int):
+    def __init__(self, n_features: int):
         """Init the class."""
         super(ReductionA, self).__init__()
         # Convolutions
         ## Branch 1 (0 in total)
         ## Branch 2 (1 in total)
-        self.conv21 = nn.Conv2d(n_features, 384, kernel_size=3, stride=2, padding='valid')
+        self.conv21 = nn.Conv2d(
+            n_features, 384, kernel_size=3, stride=2, padding="valid"
+        )
         ## Branch 3 (3 in total)
         self.conv31 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
         self.conv32 = nn.Conv2d(192, 224, kernel_size=1, padding=0)
-        self.conv33 = nn.Conv2d(224, 256, kernel_size=3, stride=2, padding='valid')
+        self.conv33 = nn.Conv2d(224, 256, kernel_size=3, stride=2, padding="valid")
 
         # Batch Normalizations
         self.bn21 = nn.BatchNorm2d(384)
@@ -778,19 +776,19 @@ class ReductionA(nn.Module):
 class ReductionB(nn.Module):
     """The Second Reduction From the Inception V4 Neural Network."""
 
-    def __init__(self, n_features:int):
+    def __init__(self, n_features: int):
         """Init the class."""
         super(ReductionB, self).__init__()
         # Convolutions
         ## Branch 1 (0 in total)
         ## Branch 2 (2 in total)
         self.conv21 = nn.Conv2d(n_features, 192, kernel_size=1, padding=0)
-        self.conv22 = nn.Conv2d(192, 192, kernel_size=3, stride=2, padding='valid')
+        self.conv22 = nn.Conv2d(192, 192, kernel_size=3, stride=2, padding="valid")
         ### Branch 3 (4 in total)
         self.conv31 = nn.Conv2d(n_features, 256, kernel_size=1, padding=0)
-        self.conv32 = nn.Conv2d(256, 256, kernel_size=(1,7), padding=(0,3))
-        self.conv33 = nn.Conv2d(256, 320, kernel_size=(7, 1), padding=(3,0))
-        self.conv34 = nn.Conv2d(320, 320, kernel_size=3, stride=2, padding='valid')
+        self.conv32 = nn.Conv2d(256, 256, kernel_size=(1, 7), padding=(0, 3))
+        self.conv33 = nn.Conv2d(256, 320, kernel_size=(7, 1), padding=(3, 0))
+        self.conv34 = nn.Conv2d(320, 320, kernel_size=3, stride=2, padding="valid")
 
         # Batch Normalizations
         self.bn21 = nn.BatchNorm2d(192)
@@ -832,7 +830,7 @@ class ReductionB(nn.Module):
 class InceptionV4(nn.Module):
     """The Completed Inception Model."""
 
-    def __init__(self,n_classes:int, n_channels:int):
+    def __init__(self, n_classes: int, n_channels: int):
         """Init the class."""
         super(InceptionV4, self).__init__()
         self.stem = InceptionStem(n_channels)
@@ -881,6 +879,6 @@ class InceptionV4(nn.Module):
 if __name__ == "__main__":
     _main()
 
-#websites:
+# websites:
 # https://arxiv.org/pdf/1311.2901.pdf
 # https://vitalflux.com/different-types-of-cnn-architectures-explained-examples/

@@ -1,4 +1,5 @@
 """Custom Dataset Classes that Inherit from Pytorch's Dataset Class."""
+
 import os
 
 from torch.utils import data
@@ -25,7 +26,7 @@ class ImageSet(data.Dataset):
         Path to the folder containing the data.
     """
 
-    def __init__(self, root='train/', image_loader=None, transform=None):
+    def __init__(self, root="train/", image_loader=None, transform=None):
         """Initialize the Dataset Subclass."""
         self.root = root
         self.folders = os.listdir(root)
@@ -44,7 +45,9 @@ class ImageSet(data.Dataset):
 
     def __getitem__(self, index):
         """Get item from class."""
-        images = [self.loader(os.path.join(self.root, folder)) for folder in self.folders]
+        images = [
+            self.loader(os.path.join(self.root, folder)) for folder in self.folders
+        ]
         if self.transform is not None:
             images = [self.transform(img) for img in images]
         return images
@@ -64,9 +67,16 @@ class MixedDataset(data.Dataset):
         Column containing the label about cancer.
     """
 
-    def __init__(self, csvfile:str|pl.DataFrame, label_column:str='pathology', image_loader=None, image_transforms=None, cat_transforms=None):
+    def __init__(
+        self,
+        csvfile: str | pl.DataFrame,
+        label_column: str = "pathology",
+        image_loader=None,
+        image_transforms=None,
+        cat_transforms=None,
+    ):
         """Initialize the class."""
-        if type(csvfile) == str:
+        if isinstance(csvfile, str):
             self.csv = pl.read_csv(csvfile)
         else:
             self.csv = csvfile
@@ -83,14 +93,18 @@ class MixedDataset(data.Dataset):
         """Get the datapoint."""
         if torch.is_tensor(index):
             index.tolist()
-        image = Image.open(self.csv['path'][index])
+        image = Image.open(self.csv["path"][index])
         if self.image_transforms:
             image = self.image_transforms(image)
-        supplementary_data = np.array(self.csv.select(pl.exclude('path', self.lcol)))
+        supplementary_data = np.array(self.csv.select(pl.exclude("path", self.lcol)))
         labels = np.array(self.csv.select(self.lcol))
         if self.cat_transforms:
             labels = self.label_transforms(labels)
-        sample = {'image':image, 'supplementary data':supplementary_data, 'labels':labels}
+        sample = {
+            "image": image,
+            "supplementary data": supplementary_data,
+            "labels": labels,
+        }
         return sample
 
 
@@ -111,10 +125,22 @@ class DICOMSet(data.Dataset):
         The column containing the path to the dicom file.
     """
 
-    def __init__(self, csvfile:str|pl.DataFrame, label_col:str,img_col:str="path", image_loader=None, image_transforms=None, categorical_transforms=None):
+    def __init__(
+        self,
+        csvfile: str | pl.DataFrame,
+        label_col: str,
+        img_col: str = "path",
+        image_loader=None,
+        image_transforms=None,
+        categorical_transforms=None,
+    ):
         """Init the Class."""
-        assert (type(csvfile) == str) | (type(csvfile) == pl.DataFrame), TypeError("csvfile is not of the correct type, the current type is {}".format(type(csvfile)))
-        if type(csvfile) == str:
+        assert isinstance(csvfile, str) or isinstance(csvfile, pl.DataFrame), TypeError(
+            "csvfile is not of the correct type, the current type is {}".format(
+                type(csvfile)
+            )
+        )
+        if isinstance(csvfile, str):
             self.csv = pl.read_csv(csvfile)
         else:
             self.csv = csvfile
@@ -127,7 +153,7 @@ class DICOMSet(data.Dataset):
     def __len__(self):
         """Calculate the length of the dataset."""
         return len(self.csv)
-        #return self.csv.select(pl.count()).item()
+        # return self.csv.select(pl.count()).item()
 
     def __getitem__(self, index):
         """Get the datapoint."""
@@ -140,13 +166,13 @@ class DICOMSet(data.Dataset):
             img = self.img_transforms(img)
         if self.cat_transforms:
             cat = self.cat_transforms(cat)
-        #sample = {'image': img, 'labels': cat}
+        # sample = {'image': img, 'labels': cat}
         return img, cat
 
     @staticmethod
     def extract_image(dicom_file):
         """Extract image from the DICOM File."""
-        slices = np.asarray(dicom_file.pixel_array).astype('float32')
+        slices = np.asarray(dicom_file.pixel_array).astype("float32")
         if slices.ndim <= 2:
             slice = slices
         elif slices.ndim > 3:
@@ -155,7 +181,7 @@ class DICOMSet(data.Dataset):
         return slice
 
     @staticmethod
-    def extract_metadata(dicom_file, cols:list[str]) -> dict:
+    def extract_metadata(dicom_file, cols: list[str]) -> dict:
         """Extract metadata from the DICOM file.
 
         Parameters
@@ -172,7 +198,7 @@ class DICOMSet(data.Dataset):
             Contains the label from the columns and the associated
             value.
         """
-        return {str(col):dicom_file[str(col)].value for col in cols}
+        return {str(col): dicom_file[str(col)].value for col in cols}
 
 
 if __name__ == "__main__":
