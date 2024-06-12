@@ -66,7 +66,22 @@ class Pipeline:
 
     @staticmethod
     def label_paths(paths: list[str], labels: dict) -> list[dict]:
-        """Create labels for categorizing paths and extracting unique ID."""
+        """Create labels for categorizing paths and extracting unique ID.
+
+        Parameters
+        ----------
+        paths : List of Strings
+            List of paths that direct to the relevant files.
+        labels : Dictionary
+            Contains the search term as its key and the label as its values.
+
+        Returns
+        -------
+        List of Dictionaries
+            Precursor to DataFrame that can be kept as is for saving as json,
+            or any other configuration (allows flexibility to use polars or
+            pandas).
+        """
         data = list()
         for path in paths:
             for term, label in labels.items():
@@ -83,7 +98,25 @@ class Pipeline:
 
     @staticmethod
     def create_unique_id(fname: str | pl.DataFrame, cols: list[str]) -> pl.DataFrame:
-        """Create a column that contains a unique id created from other column values."""
+        """Create a column that contains a unique id created from other column values.
+
+        Uses existing values from the dataset to develop a unique id that can then be
+        used to merge two dataframes together. The intent is to match the id extracted
+        from the path to the dicom file to the data found within the descriptive
+        datasets.
+
+        Parameters
+        ----------
+        fname : String or Polars DataFrame
+            path to the csv file.
+        cols : List of Strings
+            column names
+
+        Returns
+        -------
+        Polars DataFrame
+            DataFrame containing the new unique id.
+        """
         assert isinstance(fname, str) or isinstance(fname, pl.DataFrame), TypeError(
             "fname parameter must be either a string pointing to a csv file or a polar DataFrame."
         )
@@ -91,8 +124,8 @@ class Pipeline:
             df = pl.read_csv(fname)
         else:
             df = fname
-        # The target: P_XXXXX_SIDE_view/_n (the '/' means the rest is optional)
-        df = df.with_columns((pl.col("patient_id") + "_" + pl.col()))
+        df = df.with_columns((pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "_" + pl.col("abnormality id")).alias("unique_id"))
+        return df
 
     @staticmethod
     def merge_data(
