@@ -23,13 +23,19 @@ def _main():
     """Test the new functions."""
     # dir = 'data/CBIS-DDSM/images/'
     # fpaths = utils.get_file_paths(dir, 'data/CBIS-DDSM/paths.csv')
+    lb = {'mask': 'mask', 'cropped':'crop', 'full':'full'}
+    pipe = Pipeline(root='data/CBIS-DDSM/', labels=lb)
+    pipe.start()
+    exit()
     df__paths = pl.read_csv("data/CBIS-DDSM/paths.csv")
     pathset = list()
     for row in df__paths.iter_rows(named=True):
         fpath = row["paths"]
         fpath = fpath[:-1]
         components = fpath.split("/")
-        unique_id = components[3]
+        raw_uid = components[3]
+        start = raw_uid.find('_') + 1
+        unique_id = raw_uid[start:]
         if "ROI mask" in fpath:
             label = "mask"
         elif "cropped images" in fpath:
@@ -46,13 +52,26 @@ def _main():
 class Pipeline:
     """Pipeline for the CBIS-DDSM Dataset."""
 
-    def __init__(self, root: str, labels: list[str]):
+    def __init__(self, root: str, labels: dict):
         """Init the Pipeline."""
-        self.file_locations = root
+        self.root = root
+        self.labels = labels
 
     def start(self):
         """Start the pipeline processs."""
-        pass
+        print("starting Pipeline...")
+        paths = self.extract_paths(self.root)
+        labeled_paths = self.label_paths(paths, self.labels)
+        df__descriptions = self.concat_description_sets()
+        df__descriptions = self.create_unique_id(df__descriptions, labeled_paths)
+        df__dataset = self.merge_data(labeled_paths, df__descriptions, 'UID')
+        print("Writing dataset...")
+        if os.path.isfile("data/CBIS-DDSM/dataset.csv"):
+            df__dataset = pl.read_csv("data/CBIS-DDSM/dataset.csv")
+        else:
+            df__dataset.write_csv('data/CBIS-DDSM/dataset.csv')
+        print("Pipeline complete.")
+        return df__dataset
 
     @staticmethod
     def extract_paths(root: str) -> list[str]:
@@ -61,7 +80,7 @@ class Pipeline:
         all_files.append("paths\n")
         for path, subdirs, files in os.walk(root):
             for name in files:
-                all - files.append(os.path.join(path, name, "\n"))
+                all_files.append(os.path.join(path, name, "\n"))
         return all_files
 
     @staticmethod
@@ -84,20 +103,25 @@ class Pipeline:
         """
         data = list()
         for path in paths:
-            for term, label in labels.items():
-                path = path[:-1]
-                lpath = path.lower()
-                lterm = term.lower()
-                components = path.split("/")
-                unique_id = components[3]
-                if lterm in lpath:
-                    data.append({"UID": unique_id, "path": path, "type": label})
-                else:
-                    pass
+            if 'images' in path:
+                for term, label in labels.items():
+                    path = path[:-1]
+                    lpath = path.lower()
+                    lterm = term.lower()
+                    components = path.split("/")
+                    raw_uid = components[3]
+                    start = raw_uid.find('_') + 1
+                    unique_id = raw_uid[start:]
+                    if lterm in lpath:
+                        data.append({"UID": unique_id, "path": path, "type": label})
+                    else:
+                        pass
+            else:
+                pass
         return data
 
     @staticmethod
-    def create_unique_id(fname: str | pl.DataFrame, cols: list[str]) -> pl.DataFrame:
+    def create_unique_id(fname: str | pl.DataFrame, cols: list[str]) -> pl.DataFrame: # TODO: Deprecate the cols parameter
         """Create a column that contains a unique id created from other column values.
 
         Uses existing values from the dataset to develop a unique id that can then be
@@ -124,7 +148,49 @@ class Pipeline:
             df = pl.read_csv(fname)
         else:
             df = fname
-        df = df.with_columns((pl.col("patient_id") + "_" + pl.col("left or right breast") + "_" + pl.col("image view") + "_" + pl.col("abnormality id")).alias("unique_id"))
+        df = df.with_columns(
+            (
+                pl.concat_str(
+                    pl.col("patient_id"),
+                    pl.col("left or right breast"),
+                    pl.col("image view"),
+                    pl.col("abnormality id"),
+                    separator="_"
+                    )
+            ).alias("UID")
+        )
+        return df
+
+    def extract_description_sets(self):
+        """Extract all of the datasets describing the patients.
+
+        Grabs all of the csv files containing the word 'description'
+        within it and places them  within a list.
+        """
+        directory = os.listdir(self.root)
+        descriptive_files = list()
+        for fname in directory:
+            if "description" in fname:
+                descriptive_files.append(os.path.join(self.root, fname))
+            else:
+                pass
+        self.desc_files = descriptive_files
+        return self
+
+    def concat_description_sets(self) -> pl.DataFrame:
+        """Concatenate all of the datasets describing the patients.
+
+        Grabs all of the csv files containing the word 'description'
+        within it and concatenates them together into one descriptive
+        dataset.
+        """
+        self.extract_description_sets()
+        for i, fn in enumerate(self.desc_files):
+            if i == 0:
+                df = pl.read_csv(fn)
+            else:
+                df_concat = pl.read_csv(fn)
+                df = pl.concat([df, df_concat], how="align")
         return df
 
     @staticmethod
@@ -132,7 +198,7 @@ class Pipeline:
         data: list[dict] | pl.DataFrame, fname: str | pl.DataFrame, id: str
     ) -> pl.DataFrame:
         """Merge the labeled dataset with paths to any other csv files."""
-        assert isinstance(data, list[dict]) or isinstance(
+        assert isinstance(data, list) or isinstance(
             data, pl.DataFrame
         ), TypeError(
             "data parameter must be either a list of dictionaries or a polar DataFrame."
@@ -140,7 +206,7 @@ class Pipeline:
         assert isinstance(fname, str) or isinstance(fname, pl.DataFrame), TypeError(
             "fname parameter must be either a string pointing to a csv file or a polar DataFrame."
         )
-        if isinstance(data, list[dict]):
+        if isinstance(data, list):
             df_paths = pl.DataFrame(data)
         else:
             df_paths = data
@@ -148,7 +214,7 @@ class Pipeline:
             df_metadata = pl.read_csv(fname)
         else:
             df_metadata = fname
-        df_merged = df_paths.join(df_metadata, on="uid", how="inner")
+        df_merged = df_paths.join(df_metadata, on=id, how="inner")
         return df_merged
 
 
