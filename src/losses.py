@@ -11,13 +11,14 @@ def _main():
 
 
 class Dice(Loss):
-    """Dice Loss Algorithm
+    """Dice Loss Algorithm.
 
     Loss algorithm mainly used for calculating the
     similarity between images.
     """
 
     def __init__(self, smooth=1e-6, gamma=2):
+        """Init the custom loss."""
         super(Dice, self).__init__()
         self.name = "NDL"
         self.smooth = smooth
@@ -40,7 +41,7 @@ class Dice(Loss):
 
 
 class Boundary(Loss):
-    """Boundary Variant Loss Algorithm
+    """Boundary Variant Loss Algorithm.
 
     Tasked with highlyy unbalanced segmentations. This
     loss' form is that of a distance metric on space
@@ -50,11 +51,13 @@ class Boundary(Loss):
     """
 
     def __init__(self, theta0: int = 5, theta: int = 11):
+        """Init the custom loss."""
         super(Boundary, self).__init__()
         self.theta0 = theta0
         self.theta = theta
 
     def call(self, y_true, y_pred):
+        """Calculate the loss between the predicted values and the actual values."""
         # Calculate the Boundary of the Image
         y_tru = nn.softmax(y_true)
         true_boundary = nn.max_pool2d(
@@ -92,9 +95,10 @@ class Boundary(Loss):
 
 
 class Tversky(Loss):
-    """Tversky Loss Algorithm"""
+    """Tversky Loss Algorithm."""
 
     def __init__(self, alpha=0.5, beta=0.5, smooth=1e-5, reduction="mean"):
+        """Init the custom loss."""
         super(Tversky, self).__init__()
         self.alpha = alpha
         self.beta = beta
