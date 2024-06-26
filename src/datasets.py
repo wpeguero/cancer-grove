@@ -129,7 +129,7 @@ class DICOMSet(data.Dataset):
         self,
         csvfile: str | pl.DataFrame,
         label_col: str,
-        img_col: str = "path",
+        img_col: str = "paths",
         image_loader=None,
         image_transforms=None,
         categorical_transforms=None,
