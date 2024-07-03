@@ -12,7 +12,10 @@ import os
 
 import polars as pl
 import torch
-# import utils
+from torch.utils import data
+
+from utils import create_target_transform, STANDARD_IMAGE_TRANSFORMS
+from datasets import DICOMSet
 
 img_size = (512, 512)
 torch.manual_seed(42)
@@ -21,32 +24,20 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    # dir = 'data/CBIS-DDSM/images/'
-    # fpaths = utils.get_file_paths(dir, 'data/CBIS-DDSM/paths.csv')
-    lb = {'mask': 'mask', 'cropped':'crop', 'full':'full'}
-    pipe = Pipeline(root='data/CBIS-DDSM/', labels=lb)
-    pipe.start()
-    exit()
-    df__paths = pl.read_csv("data/CBIS-DDSM/paths.csv")
-    pathset = list()
-    for row in df__paths.iter_rows(named=True):
-        fpath = row["paths"]
-        fpath = fpath[:-1]
-        components = fpath.split("/")
-        raw_uid = components[3]
-        start = raw_uid.find('_') + 1
-        unique_id = raw_uid[start:]
-        if "ROI mask" in fpath:
-            label = "mask"
-        elif "cropped images" in fpath:
-            label = "crop"
-        elif "full mammogram images" in fpath:
-            label = "full"
-        else:
-            label = ""
-        pathset.append({"paths": fpath, "UID": unique_id, "img type": label})
-    df__nupaths = pl.DataFrame(pathset)
-    df__nupaths.write_csv("data/CBIS-DDSM/nupaths.csv")
+    df = pl.read_csv("data/CBIS-DDSM/dataset.csv")
+    n_cats = df.n_unique(subset=["pathology"])
+    ttransform = create_target_transform(n_cats)
+    dataset = DICOMSet(
+        df,
+        label_col="pathology",
+        image_transforms=STANDARD_IMAGE_TRANSFORMS,
+        categorical_transforms=ttransform,
+    )
+    train_size = int(0.7*len(dataset))
+    test_size = len(dataset) - train_size
+    train_set, test_set = data.random_split(dataset, [train_size, test_size])
+    train_loader = data.DataLoader(train_set, batch_size=64, shuffle=True, num_workers=4)
+    test_loader = data.DataLoader(test_set, batch_size=64, shuffle=True, num_workers=4)
 
 
 class Pipeline:
@@ -60,16 +51,17 @@ class Pipeline:
     def start(self):
         """Start the pipeline processs."""
         print("starting Pipeline...")
-        paths = self.extract_paths(self.root)
-        labeled_paths = self.label_paths(paths, self.labels)
-        df__descriptions = self.concat_description_sets()
-        df__descriptions = self.create_unique_id(df__descriptions, labeled_paths)
-        df__dataset = self.merge_data(labeled_paths, df__descriptions, 'UID')
         print("Writing dataset...")
         if os.path.isfile("data/CBIS-DDSM/dataset.csv"):
             df__dataset = pl.read_csv("data/CBIS-DDSM/dataset.csv")
         else:
-            df__dataset.write_csv('data/CBIS-DDSM/dataset.csv')
+            paths = self.extract_paths(self.root)
+            labeled_paths = self.label_paths(paths, self.labels)
+            df__descriptions = self.concat_description_sets()
+            df__descriptions = self.create_unique_id(df__descriptions, labeled_paths)
+            df__dataset = self.merge_data(labeled_paths, df__descriptions, "UID")
+            df__dataset.write_csv("data/CBIS-DDSM/dataset.csv")
+        self.df_set = df__dataset
         print("Pipeline complete.")
         return df__dataset
 
@@ -103,14 +95,14 @@ class Pipeline:
         """
         data = list()
         for path in paths:
-            if 'images' in path:
+            if "images" in path:
                 for term, label in labels.items():
                     path = path[:-1]
                     lpath = path.lower()
                     lterm = term.lower()
                     components = path.split("/")
                     raw_uid = components[3]
-                    start = raw_uid.find('_') + 1
+                    start = raw_uid.find("_") + 1
                     unique_id = raw_uid[start:]
                     if lterm in lpath:
                         data.append({"UID": unique_id, "path": path, "type": label})
@@ -121,7 +113,9 @@ class Pipeline:
         return data
 
     @staticmethod
-    def create_unique_id(fname: str | pl.DataFrame, cols: list[str]) -> pl.DataFrame: # TODO: Deprecate the cols parameter
+    def create_unique_id(
+        fname: str | pl.DataFrame, cols: list[str]
+    ) -> pl.DataFrame:  # TODO: Deprecate the cols parameter
         """Create a column that contains a unique id created from other column values.
 
         Uses existing values from the dataset to develop a unique id that can then be
@@ -155,8 +149,8 @@ class Pipeline:
                     pl.col("left or right breast"),
                     pl.col("image view"),
                     pl.col("abnormality id"),
-                    separator="_"
-                    )
+                    separator="_",
+                )
             ).alias("UID")
         )
         return df
@@ -198,9 +192,7 @@ class Pipeline:
         data: list[dict] | pl.DataFrame, fname: str | pl.DataFrame, id: str
     ) -> pl.DataFrame:
         """Merge the labeled dataset with paths to any other csv files."""
-        assert isinstance(data, list) or isinstance(
-            data, pl.DataFrame
-        ), TypeError(
+        assert isinstance(data, list) or isinstance(data, pl.DataFrame), TypeError(
             "data parameter must be either a list of dictionaries or a polar DataFrame."
         )
         assert isinstance(fname, str) or isinstance(fname, pl.DataFrame), TypeError(
