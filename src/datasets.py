@@ -108,7 +108,7 @@ class MixedDataset(data.Dataset):
         return sample
 
 
-class DICOMSet(data.Dataset):
+class DICOMDataset(data.Dataset):
     """Dataset used to load and extract information from DICOM images.
 
     Loads image from the dicom files and adds a label associated with
@@ -199,6 +199,69 @@ class DICOMSet(data.Dataset):
             value.
         """
         return {str(col): dicom_file[str(col)].value for col in cols}
+
+
+class ROIDataset(data.Dataset):
+    """Dataset for Developing Region of Interest Models.
+
+    Similar to  the DICOMSet, this dataset functions by extracting
+    images from the DICOM files and comparing the cropped out version
+    with the full image found within the DICOM file.
+
+    Parameters
+    ----------
+    csvfile : String or Polars DataFrame
+        File or path to file containing the path to the image and the
+        categorical data.
+    img_col : String
+        The column containing the path to the dicom file.
+    roi_col: String
+        The column containing the path to the ROI dicom file.
+    """
+
+    def __init__(
+        self,
+        csvfile: str | pl.DataFrame,
+        img_col: str,
+        roi_col: str,
+        image_loader=None,
+        img_transforms=None,
+        roi_transform=None,
+    ):
+        """Init the class."""
+        assert isinstance(csvfile, str) or isinstance(csvfile, pl.DataFrame), TypeError(
+            "csvfile is not of the correct type, the current type is {}.".format(
+                type(csvfile)
+            )
+        )
+        if isinstance(csvfile, str):
+            self.csv = pl.read_csv(csvfile)
+        else:
+            self.csv = csvfile
+        self.icol = img_col
+        self.tcol = roi_col
+        self.imgtrans = img_transforms
+        self.roitrans = roi_transform
+        self.loader = image_loader
+
+    def __len__(self):
+        """Calculate the length of the dataset."""
+        return len(self.csv)
+
+    def __getitem__(self, index): #TODO: Make it so that the two images are translated
+        """Get the datapoint."""
+        if torch.is_tensor(index):
+            index.tolist()
+        dicom_file = dcmread(self.csv.select(self.icol).row(index)[0])
+        img = DICOMDataset.extract_image(dicom_file)
+        roi_file = dcmread(self.csv.select(self.tcol).row(index)[0])
+        roi = DICOMDataset.extract(roi_file)
+        if self.imgtrans:
+            img = self.imgtrans(img)
+        if self.roitrans:
+            roi = self.roitrans(roi)
+        # sample = {'image': img, 'labels': cat}
+        return img, roi
 
 
 if __name__ == "__main__":
