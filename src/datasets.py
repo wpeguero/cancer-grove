@@ -126,7 +126,8 @@ class DICOMSet(data.Dataset):
 
     def __len__(self):
         """Calculate the length of the dataset."""
-        return self.csv.select(pl.count()).item()
+        return len(self.csv)
+        #return self.csv.select(pl.count()).item()
 
     def __getitem__(self, index):
         """Get the datapoint."""
@@ -140,8 +141,7 @@ class DICOMSet(data.Dataset):
         if self.cat_transforms:
             cat = self.cat_transforms(cat)
         #sample = {'image': img, 'labels': cat}
-        sample = (img, cat)
-        return sample
+        return img, cat
 
     @staticmethod
     def extract_image(dicom_file):
@@ -153,6 +153,26 @@ class DICOMSet(data.Dataset):
             slice = slices[0]
         slice = slice[..., np.newaxis]
         return slice
+
+    @staticmethod
+    def extract_metadata(dicom_file, cols:list[str]) -> dict:
+        """Extract metadata from the DICOM file.
+
+        Parameters
+        ----------
+        dicom_file
+            DICOM file containing the desired metadata and image.
+
+        cols : list
+            labels of the metadata contained within the DICOM file.
+
+        Returns
+        -------
+        Dictionary
+            Contains the label from the columns and the associated
+            value.
+        """
+        return {str(col):dicom_file[str(col)].value for col in cols}
 
 
 if __name__ == "__main__":
