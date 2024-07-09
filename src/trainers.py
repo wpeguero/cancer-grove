@@ -7,22 +7,9 @@ with open('src/model_version.txt', 'r') as fp:
     VERSION = int(fp.read())
     fp.close()
 
+
 class Trainer:
-    """Class for training pytorch machine learning models.
-
-    This class functions as an environment for training the
-    pytorch models.
-
-    Parameters
-    ----------
-    model : torch Module
-        Model which will be trained within this class.
-    optimizer : torch Optimizer
-        optimizer used to change the weights on the machine
-        learning model.
-    loss : torch Loss
-        The chosen loss to compare the prediction and the target.
-    """
+    """Base class for training machine learning models."""
 
     def __init__(self, model:nn.Module, optimizer:optim.Optimizer, loss):
         """Initialize the class."""
@@ -31,7 +18,7 @@ class Trainer:
         self.criterion = loss
 
     def get_model(self):
-        """Get the Model post training.
+        """Get the model post training.
 
         Returns
         -------
@@ -72,6 +59,55 @@ class Trainer:
         for epoch in range(epochs):
             running_loss = 0.0
             self.model.train(True)
+            train_step(self. epoch, trainloader)
+
+    def train_step(self, epoch:int, trainloader:data.DataLoader):
+        """Single Step for training model."""
+        raise NotImplementedError("method train_step must be implemented.")
+
+
+class ClassTrainer(Trainer):
+    """Class for training pytorch machine learning classifiers.
+
+    This class functions as an environment for training the
+    pytorch models.
+
+    Parameters
+    ----------
+    model : torch Module
+        Model which will be trained within this class.
+    optimizer : torch Optimizer
+        optimizer used to change the weights on the machine
+        learning model.
+    loss : torch Loss
+        The chosen loss to compare the prediction and the target.
+    """
+
+    def __init__(self, model:nn.Module, optimizer:optim.Optimizer, loss):
+        """Initialize the class."""
+        self.model = model
+        self.opt = optimizer
+        self.criterion = loss
+
+    def train_step(self, epoch:int, trainloader:data.DataLoader):
+        correct = 0
+        total = 0
+        for i, (inputs, labels) in enumerate(trainloader, 0):
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+            self.opt.zero_grad()
+
+            outputs = self.model(inputs)
+            loss = self.criterion(outputs, labels)
+            loss.backward()
+            self.opt.step()
+
+            _, ipredicted = torch.max(outputs.data, 1)
+            _, lindices = torch.max(labels.data, 1)
+            total += labels.size(0)
+            correct += (ipredicted == lindices).sum().item()
+            running_loss += loss.item()
+        print(f'[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
             correct = 0
             total = 0
             for i, (inputs, labels) in enumerate(trainloader, 0):
