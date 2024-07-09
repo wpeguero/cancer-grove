@@ -33,14 +33,42 @@ def _main():
         image_transforms=STANDARD_IMAGE_TRANSFORMS,
         categorical_transforms=ttransform,
     )
-    train_size = int(0.7*len(dataset))
+    train_size = int(0.7 * len(dataset))
     test_size = len(dataset) - train_size
     train_set, test_set = data.random_split(dataset, [train_size, test_size])
-    train_loader = data.DataLoader(train_set, batch_size=64, shuffle=True, num_workers=4)
+    train_loader = data.DataLoader(
+        train_set, batch_size=64, shuffle=True, num_workers=4
+    )
     test_loader = data.DataLoader(test_set, batch_size=64, shuffle=True, num_workers=4)
 
 
-class Pipeline:
+class DataPipeline:
+    """Base Class for Data Related Pipelines.
+
+    This will contain the base functions related to extracting data. The Data
+    Pipeline will imitate PyTorch's Dataset class. The Pipeline will extract,
+    transform, and load data into a PyTorch dataset and save a version of the
+    dataset within the csv format. In the case that there are certain files
+    (i.e. images) that will be used to train the machine learning models, then
+    the paths to said files will be saved within the csv file itself together
+    with any metadata found within any other possible csv file within the root.
+
+    Parameters
+    ----------
+    root : String
+        Path to the folder containing all of the data.
+    """
+
+    def __init__(self, root:str):
+        """Init the Data Pipeline."""
+        self.root = root
+
+    def start(self):
+        """Activate and begin the Process for the Pipeline."""
+        raise NotImplementedError("start Method must be implemented before activating pipeline.")
+
+
+class CuratedBreastCancerClassifierPipeline:  # TODO: Change the static methods.
     """Pipeline for the CBIS-DDSM Dataset."""
 
     def __init__(self, root: str, labels: dict):
@@ -208,6 +236,16 @@ class Pipeline:
             df_metadata = fname
         df_merged = df_paths.join(df_metadata, on=id, how="inner")
         return df_merged
+
+
+class CuratedBreastCancerROIPipeline:
+    """Pipeline For Creating ROI Dataset from the CBIS-DDSM Dataset.
+
+    Pipeline that uses the CBIS-DDSM dataset to develop a machine learning
+    model that zooms in on the region of interest of an image.
+    """
+
+    pass
 
 
 if __name__ == "__main__":
