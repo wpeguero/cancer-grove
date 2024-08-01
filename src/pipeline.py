@@ -12,10 +12,9 @@ import os
 
 import polars as pl
 import torch
+from datasets import DICOMDataset
 from torch.utils import data
-
-from utils import create_target_transform, STANDARD_IMAGE_TRANSFORMS
-from datasets import DICOMSet
+from utils import STANDARD_IMAGE_TRANSFORMS, create_target_transform
 
 img_size = (512, 512)
 torch.manual_seed(42)
@@ -27,7 +26,7 @@ def _main():
     df = pl.read_csv("data/CBIS-DDSM/dataset.csv")
     n_cats = df.n_unique(subset=["pathology"])
     ttransform = create_target_transform(n_cats)
-    dataset = DICOMSet(
+    dataset = DICOMDataset(
         df,
         label_col="pathology",
         image_transforms=STANDARD_IMAGE_TRANSFORMS,
@@ -59,22 +58,46 @@ class DataPipeline:
         Path to the folder containing all of the data.
     """
 
-    def __init__(self, root:str):
+    def __init__(self, root: str):
         """Init the Data Pipeline."""
         self.root = root
+        self._extract_paths()
+        self._label_paths()
 
     def start(self):
         """Activate and begin the Process for the Pipeline."""
-        raise NotImplementedError("start Method must be implemented before activating pipeline.")
+        raise NotImplementedError(
+            "start Method must be implemented before activating pipeline."
+        )
+
+    def _extract_paths(self):
+        """Extract the path to files within root."""
+        raw_paths = list("paths\n")
+        for path, subdirs, files in os.walk(self.root):
+            paths = [os.path.join(path, name, "\n") for name in files]
+        raw_paths.extend(paths)
+        self.raw_paths = raw_paths
+        return self
+
+    def _label_paths(self):
+        """Label the file type of all files found within root."""
+        all_files = list()
+        for path in self.raw_paths:
+            if "paths\n" in path:
+                pass
+            start = path.find(".")
+            all_files.append({"path": path, "filetype": path[start + 1 :]})
+        self.all_files = all_files
+        return self
 
 
-class CuratedBreastCancerClassifierPipeline:  # TODO: Change the static methods.
+class CuratedBreastCancerClassifierPipeline:
     """Pipeline for the CBIS-DDSM Dataset."""
 
-    def __init__(self, root: str, labels: dict):
+    def __init__(self, root: str, labels: dict, cols: list[str]):
         """Init the Pipeline."""
-        self.root = root
-        self.labels = labels
+        super().__init__(root, labels)
+        self.cols = cols
 
     def start(self):
         """Start the pipeline processs."""
@@ -83,28 +106,29 @@ class CuratedBreastCancerClassifierPipeline:  # TODO: Change the static methods.
         if os.path.isfile("data/CBIS-DDSM/dataset.csv"):
             df__dataset = pl.read_csv("data/CBIS-DDSM/dataset.csv")
         else:
-            paths = self.extract_paths(self.root)
-            labeled_paths = self.label_paths(paths, self.labels)
+            self.extract_paths()
+            self.label_paths()
             df__descriptions = self.concat_description_sets()
-            df__descriptions = self.create_unique_id(df__descriptions, labeled_paths)
-            df__dataset = self.merge_data(labeled_paths, df__descriptions, "UID")
+            df__descriptions = self.create_unique_id(
+                df__descriptions, self.labelled_data
+            )
+            df__dataset = self.merge_data(self.labelled_data, df__descriptions, "UID")
             df__dataset.write_csv("data/CBIS-DDSM/dataset.csv")
         self.df_set = df__dataset
         print("Pipeline complete.")
         return df__dataset
 
-    @staticmethod
-    def extract_paths(root: str) -> list[str]:
+    def extract_paths(self):
         """Extract the paths to all files within root directory."""
         all_files = list()
         all_files.append("paths\n")
-        for path, subdirs, files in os.walk(root):
+        for path, subdirs, files in os.walk(self.root):
             for name in files:
                 all_files.append(os.path.join(path, name, "\n"))
-        return all_files
+        self.files = all_files
+        return self
 
-    @staticmethod
-    def label_paths(paths: list[str], labels: dict) -> list[dict]:
+    def label_paths(self):
         """Create labels for categorizing paths and extracting unique ID.
 
         Parameters
@@ -122,9 +146,9 @@ class CuratedBreastCancerClassifierPipeline:  # TODO: Change the static methods.
             pandas).
         """
         data = list()
-        for path in paths:
+        for path in self.files:
             if "images" in path:
-                for term, label in labels.items():
+                for term, label in self.labels.items():
                     path = path[:-1]
                     lpath = path.lower()
                     lterm = term.lower()
@@ -138,12 +162,10 @@ class CuratedBreastCancerClassifierPipeline:  # TODO: Change the static methods.
                         pass
             else:
                 pass
-        return data
+        self.labelled_data = data
+        return self
 
-    @staticmethod
-    def create_unique_id(
-        fname: str | pl.DataFrame, cols: list[str]
-    ) -> pl.DataFrame:  # TODO: Deprecate the cols parameter
+    def create_unique_id(self, fname: str | pl.DataFrame) -> pl.DataFrame:
         """Create a column that contains a unique id created from other column values.
 
         Uses existing values from the dataset to develop a unique id that can then be
@@ -173,10 +195,7 @@ class CuratedBreastCancerClassifierPipeline:  # TODO: Change the static methods.
         df = df.with_columns(
             (
                 pl.concat_str(
-                    pl.col("patient_id"),
-                    pl.col("left or right breast"),
-                    pl.col("image view"),
-                    pl.col("abnormality id"),
+                    [pl.col(col) for col in self.cols],
                     separator="_",
                 )
             ).alias("UID")
@@ -215,21 +234,20 @@ class CuratedBreastCancerClassifierPipeline:  # TODO: Change the static methods.
                 df = pl.concat([df, df_concat], how="align")
         return df
 
-    @staticmethod
     def merge_data(
-        data: list[dict] | pl.DataFrame, fname: str | pl.DataFrame, id: str
+        self, fname: str | pl.DataFrame, id: str
     ) -> pl.DataFrame:
         """Merge the labeled dataset with paths to any other csv files."""
-        assert isinstance(data, list) or isinstance(data, pl.DataFrame), TypeError(
+        assert isinstance(self.labelled_data, list) or isinstance(self.labelled_data, pl.DataFrame), TypeError(
             "data parameter must be either a list of dictionaries or a polar DataFrame."
         )
         assert isinstance(fname, str) or isinstance(fname, pl.DataFrame), TypeError(
             "fname parameter must be either a string pointing to a csv file or a polar DataFrame."
         )
-        if isinstance(data, list):
-            df_paths = pl.DataFrame(data)
+        if isinstance(self.labelled_data, list):
+            df_paths = pl.DataFrame(self.labelled_data)
         else:
-            df_paths = data
+            df_paths = self.labelled_data
         if isinstance(fname, str):
             df_metadata = pl.read_csv(fname)
         else:
