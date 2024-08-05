@@ -23,22 +23,11 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    df = pl.read_csv("data/CBIS-DDSM/dataset.csv")
-    n_cats = df.n_unique(subset=["pathology"])
-    ttransform = create_target_transform(n_cats)
-    dataset = DICOMDataset(
-        df,
-        label_col="pathology",
-        image_transforms=STANDARD_IMAGE_TRANSFORMS,
-        categorical_transforms=ttransform,
+    pipeline = CuratedBreastCancerROIPipeline(
+        root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
     )
-    train_size = int(0.7 * len(dataset))
-    test_size = len(dataset) - train_size
-    train_set, test_set = data.random_split(dataset, [train_size, test_size])
-    train_loader = data.DataLoader(
-        train_set, batch_size=64, shuffle=True, num_workers=4
-    )
-    test_loader = data.DataLoader(test_set, batch_size=64, shuffle=True, num_workers=4)
+    df = pipeline.start()
+    df.write_csv('data/CBIS-DDSM/paired_image_set.csv')
 
 
 class DataPipeline:
@@ -75,28 +64,29 @@ class DataPipeline:
         raw_paths = list("paths\n")
         for path, subdirs, files in os.walk(self.root):
             paths = [os.path.join(path, name, "\n") for name in files]
-        raw_paths.extend(paths)
-        self.raw_paths = raw_paths
+            raw_paths.extend(paths)
+        self.files = raw_paths
         return self
 
     def _label_paths(self):
         """Label the file type of all files found within root."""
         all_files = list()
-        for path in self.raw_paths:
+        for path in self.files:
             if "paths\n" in path:
                 pass
             start = path.find(".")
             all_files.append({"path": path, "filetype": path[start + 1 :]})
-        self.all_files = all_files
+        self.files_by_type = all_files
         return self
 
 
-class CuratedBreastCancerClassifierPipeline:
+class CuratedBreastCancerClassifierPipeline(DataPipeline):
     """Pipeline for the CBIS-DDSM Dataset."""
 
     def __init__(self, root: str, labels: dict, cols: list[str]):
         """Init the Pipeline."""
-        super().__init__(root, labels)
+        super().__init__(root)
+        self.labels = labels
         self.cols = cols
 
     def start(self):
@@ -118,17 +108,9 @@ class CuratedBreastCancerClassifierPipeline:
         print("Pipeline complete.")
         return df__dataset
 
-    def extract_paths(self):
-        """Extract the paths to all files within root directory."""
-        all_files = list()
-        all_files.append("paths\n")
-        for path, subdirs, files in os.walk(self.root):
-            for name in files:
-                all_files.append(os.path.join(path, name, "\n"))
-        self.files = all_files
-        return self
-
-    def label_paths(self):
+    def label_paths(
+        self,
+    ):
         """Create labels for categorizing paths and extracting unique ID.
 
         Parameters
@@ -234,11 +216,11 @@ class CuratedBreastCancerClassifierPipeline:
                 df = pl.concat([df, df_concat], how="align")
         return df
 
-    def merge_data(
-        self, fname: str | pl.DataFrame, id: str
-    ) -> pl.DataFrame:
+    def merge_data(self, fname: str | pl.DataFrame, id: str) -> pl.DataFrame:
         """Merge the labeled dataset with paths to any other csv files."""
-        assert isinstance(self.labelled_data, list) or isinstance(self.labelled_data, pl.DataFrame), TypeError(
+        assert isinstance(self.labelled_data, list) or isinstance(
+            self.labelled_data, pl.DataFrame
+        ), TypeError(
             "data parameter must be either a list of dictionaries or a polar DataFrame."
         )
         assert isinstance(fname, str) or isinstance(fname, pl.DataFrame), TypeError(
@@ -256,14 +238,69 @@ class CuratedBreastCancerClassifierPipeline:
         return df_merged
 
 
-class CuratedBreastCancerROIPipeline:
+class CuratedBreastCancerROIPipeline(DataPipeline):
     """Pipeline For Creating ROI Dataset from the CBIS-DDSM Dataset.
 
     Pipeline that uses the CBIS-DDSM dataset to develop a machine learning
     model that zooms in on the region of interest of an image.
     """
 
-    pass
+    def __init__(self, root: str, img_labels: dict):
+        """Init the class."""
+        super().__init__(root)
+        self.img_labels = img_labels
+        self.link_images()
+        self.create_unique_id()
+
+    def start(self):
+        """Start the pipeline for data processing."""
+        df__roi = pl.DataFrame(self.roidata)
+        df__full_image = pl.DataFrame(self.fulldata)
+        print(df__full_image)
+        df__paired_images = df__full_image.join(df__roi, on="UID", how="left")
+        return df__paired_images
+
+    @staticmethod
+    def get_roi_paths(path: str):
+        """Get the roi paths from the file list."""
+        if "roi" in path.lower():
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def get_full_image_paths(path: str):
+        """Get the full image paths from the file list."""
+        if "full" in path.lower():
+            return True
+        else:
+            return False
+
+    def create_unique_id(self):
+        """Create A unique id for linking images."""
+        roidata = list()
+        for rp in self.roi_files:
+            components = rp.split("/")
+            raw_uid = components[3]
+            start = raw_uid.find("_") + 1
+            unique_id = raw_uid[start:-2]
+            roidata.append({"UID": unique_id, "path": rp[:-2]})
+        self.roidata = roidata
+        fulldata = list()
+        for fp in self.full_files:
+            components = fp.split("/")
+            raw_uid = components[3]
+            start = raw_uid.find("_") + 1
+            unique_id = raw_uid[start:]
+            fulldata.append({"UID": unique_id, "path": fp[:-2]})
+        self.fulldata = fulldata
+        return self
+
+    def link_images(self):
+        """Connect ROI image to full image."""
+        self.roi_files = list(filter(self.get_roi_paths, self.files))
+        self.full_files = list(filter(self.get_full_image_paths, self.files))
+        return self
 
 
 if __name__ == "__main__":
