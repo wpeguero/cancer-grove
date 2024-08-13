@@ -255,7 +255,7 @@ class ROIDataset(data.Dataset):
         dicom_file = dcmread(self.csv.select(self.icol).row(index)[0])
         img = DICOMDataset.extract_image(dicom_file)
         roi_file = dcmread(self.csv.select(self.tcol).row(index)[0])
-        roi = DICOMDataset.extract(roi_file)
+        roi = DICOMDataset.extract_image(roi_file)
         if self.imgtrans:
             img = self.imgtrans(img)
         if self.roitrans:

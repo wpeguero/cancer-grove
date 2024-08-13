@@ -12,9 +12,11 @@ import os
 
 import polars as pl
 import torch
-from datasets import DICOMDataset
 from torch.utils import data
-from utils import STANDARD_IMAGE_TRANSFORMS, create_target_transform
+
+from datasets import ROIDataset
+from utils import STANDARD_IMAGE_TRANSFORMS
+from models import UNet
 
 img_size = (512, 512)
 torch.manual_seed(42)
@@ -23,11 +25,22 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    pipeline = CuratedBreastCancerROIPipeline(
-        root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
-    )
-    df = pipeline.start()
-    df.write_csv('data/CBIS-DDSM/paired_image_set.csv')
+    #pipeline = CuratedBreastCancerROIPipeline(
+    #    root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
+    #)
+    #df__pi, df__roi, df__mask = pipeline.start()
+    # df__pi.write_csv('data/CBIS-DDSM/paired_image_set.csv')
+    #df__roi.write_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
+    #df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
+    # TODO: Start training model for pair images.
+    df = pl.read_csv('data/CBIS-DDSM/roi_paired_image_set.csv')
+    img_data = ROIDataset(df, 'path', 'path_right', image_loader=STANDARD_IMAGE_TRANSFORMS, roi_transform=STANDARD_IMAGE_TRANSFORMS)
+    train_size = int(0.7*len(img_data))
+    val_size = len(img_data) - train_size
+    train_set, val_set = data.random_split(data, [train_size, val_size])
+    train_loader = data.DataLoader(train_set, batch_size=64, shuffle=True, num_workers=4)
+    val_loader = data.DataLoader(val_set, batch_size=64, shuffle=True, num_workers=4)
+    model = UNet()
 
 
 class DataPipeline:
@@ -256,9 +269,14 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
         """Start the pipeline for data processing."""
         df__roi = pl.DataFrame(self.roidata)
         df__full_image = pl.DataFrame(self.fulldata)
-        print(df__full_image)
         df__paired_images = df__full_image.join(df__roi, on="UID", how="left")
-        return df__paired_images
+        df__roi_paired_images = df__paired_images.filter(
+            pl.col("path_right").str.contains("1-1.dcm")
+        )
+        df__mask_paired_images = df__paired_images.filter(
+            pl.col("path_right").str.contains("1-2.dcm")
+        )
+        return df__paired_images, df__roi_paired_images, df__mask_paired_images
 
     @staticmethod
     def get_roi_paths(path: str):
