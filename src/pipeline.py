@@ -15,8 +15,8 @@ import torch
 from torch.utils import data
 
 from datasets import ROIDataset
-from utils import STANDARD_IMAGE_TRANSFORMS
 from models import UNet
+from utils import load_dicom_image
 
 img_size = (512, 512)
 torch.manual_seed(42)
@@ -34,12 +34,24 @@ def _main():
     #df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
     # TODO: Start training model for pair images.
     df = pl.read_csv('data/CBIS-DDSM/roi_paired_image_set.csv')
-    img_data = ROIDataset(df, 'path', 'path_right', image_loader=STANDARD_IMAGE_TRANSFORMS, roi_transform=STANDARD_IMAGE_TRANSFORMS)
+    img_data = list()
+    for row in df.iter_rows(named=True):
+        #Here is where the image size will be extracted
+        full_img = load_dicom_image(row['path'])
+        roi_img = load_dicom_image(row['path_right'])
+        full_dim = full_img.shape
+        roi_dim = roi_img.shape
+        img_data.append({'id': row['UID'], 'path':row['path'], 'roi_path':row['path_right'], 'image_dim':str(full_dim), 'roi_dim':str(roi_dim)})
+    df_shapes= pl.DataFrame(img_data)
+    df_shapes.write_csv('data/CBIS-DDSM/roi_paired_image_set_wdims.csv')
+    exit()
+
+    img_data = ROIDataset(df, 'path', 'path_right') #TODO: Create your own transforms for image size.
     train_size = int(0.7*len(img_data))
     val_size = len(img_data) - train_size
-    train_set, val_set = data.random_split(data, [train_size, val_size])
-    train_loader = data.DataLoader(train_set, batch_size=64, shuffle=True, num_workers=4)
-    val_loader = data.DataLoader(val_set, batch_size=64, shuffle=True, num_workers=4)
+    train_set, val_set = img_data.random_split(img_data, [train_size, val_size])
+    train_loader = img_data.DataLoader(train_set, batch_size=64, shuffle=True, num_workers=4)
+    val_loader = img_data.DataLoader(val_set, batch_size=64, shuffle=True, num_workers=4)
     model = UNet()
 
 
