@@ -262,6 +262,30 @@ def load_image(filename: str, size: tuple | int) -> np.ndarray:
         pass
     return data
 
+def load_dicom_image(filename:str) -> np.ndarray:
+    """Load the image from the DICOM file.
+
+    Loads the DICOM file and extracts the image from the group found
+    within the said file. This image is then converted into a numpy
+    array.
+
+    Parameters
+    ----------
+    filename: String
+        The path to the DICOM File.
+    Returns
+    -------
+    Numpy Ndarray
+        An array containing the values and properties of the image.
+    """
+    dicom_file = dcmread(filename)
+    slices = np.asarray(dicom_file.pixel_array).astype('float32')
+    if slices.ndim <= 2:
+        slice = slices
+    elif slices.ndim > 3:
+        slice = slices[0]
+    slice = slice[..., np.newaxis]
+    return slice
 
 def merge_dictionaries(*dictionaries) -> dict:
     """Merge n number of dictionaries.
