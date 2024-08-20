@@ -12,11 +12,15 @@ with open("src/model_version.txt", "r") as fp:
 class Trainer:
     """Base class for training machine learning models."""
 
-    def __init__(self, model: nn.Module, optimizer: optim.Optimizer, loss):
+    def __init__(self, model: nn.Module, optimizer: optim.Optimizer, loss, gpu:bool=False):
         """Initialize the class."""
         self.model = model
         self.opt = optimizer
         self.criterion = loss
+        if gpu:
+            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        else:
+            device = torch.device("cpu")
 
     def get_model(self):
         """Get the model post training.
@@ -49,24 +53,20 @@ class Trainer:
         gpu : bool
             Determines whether the gpu is used to train dataset.
         """
-        if gpu:
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-        else:
-            device = torch.device("cpu")
-        print("The model will be running on ", device, "device")
-        self.model.to(device)
-        steps_per_epoch = len(trainloader.dataset) // trainloader.batch_size
+        print("The model will be running on ", self.device, "device")
+        self.model.to(self.device)
         print(
             "Starting Training of {} version {}.".format(
                 self.model.__class__.__name__, VERSION
             )
         )
+        self.epochs = epochs
+        self.steps_per_epoch = len(trainloader.dataset) // trainloader.batch_size
         for epoch in range(epochs):
-            running_loss = 0.0
             self.model.train(True)
-            train_step(self. epoch, trainloader)
+            self.train_step(epoch, trainloader)
 
-    def train_step(self, epoch:int, trainloader:data.DataLoader):
+    def train_step(self, epoch: int, trainloader: data.DataLoader):
         """Single Step for training model."""
         raise NotImplementedError("method train_step must be implemented.")
 
@@ -88,18 +88,18 @@ class ClassTrainer(Trainer):
         The chosen loss to compare the prediction and the target.
     """
 
-    def __init__(self, model:nn.Module, optimizer:optim.Optimizer, loss):
+    def __init__(self, model: nn.Module, optimizer: optim.Optimizer, loss, gpu:bool=False):
         """Initialize the class."""
-        self.model = model
-        self.opt = optimizer
-        self.criterion = loss
+        super(self).__init__(model, optimizer, loss, gpu)
 
-    def train_step(self, epoch:int, trainloader:data.DataLoader):
+    def train_step(self, epoch: int, trainloader: data.DataLoader):
+        """Singular Step for Training Classifier."""
         correct = 0
         total = 0
+        running_loss = float()
         for i, (inputs, labels) in enumerate(trainloader, 0):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+            inputs = inputs.to(self.device)
+            labels = labels.to(self.device)
             self.opt.zero_grad()
 
             outputs = self.model(inputs)
@@ -112,29 +112,26 @@ class ClassTrainer(Trainer):
             total += labels.size(0)
             correct += (ipredicted == lindices).sum().item()
             running_loss += loss.item()
-        print(f'[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
             correct = 0
             total = 0
-            for i, (inputs, labels) in enumerate(trainloader, 0):
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-                self.opt.zero_grad()
+        print(f'[{epoch + 1:3d}/{self.epochs}] loss: {running_loss / self.steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
+        #for i, (inputs, labels) in enumerate(trainloader, 0):
+        #    inputs = inputs.to(self.device)
+        #    labels = labels.to(self.device)
+        #    self.opt.zero_grad()
 
-                outputs = self.model(inputs)
-                loss = self.criterion(outputs, labels)
-                loss.backward()
-                self.opt.step()
+        #    outputs = self.model(inputs)
+        #    loss = self.criterion(outputs, labels)
+        #    loss.backward()
+        #    self.opt.step()
 
-                # _, ipredicted = torch.max(outputs.data, 1)
-                ipredicted = outputs.max(1).indices
-                # _, lindices = torch.max(labels.data, 1)
-                lindices = labels.max(1).indices
-                total += labels.size(0)
-                correct += (ipredicted == lindices).sum().item()
-                running_loss += loss.item()
-            print(
-                f"[{epoch + 1:3d}/{epochs}] loss: {running_loss / steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}"
-            )
+        #    # _, ipredicted = torch.max(outputs.data, 1)
+        #    ipredicted = outputs.max(1).indices
+        #    # _, lindices = torch.max(labels.data, 1)
+        #    lindices = labels.max(1).indices
+        #    total += labels.size(0)
+        #    correct += (ipredicted == lindices).sum().item()
+        #    running_loss += loss.item()
 
     @staticmethod
     def test(
@@ -216,3 +213,15 @@ class ClassTrainer(Trainer):
         for lindex, pindex in zip(lindices, pindices):
             cm[pindex, lindex] += 1
         return cm
+
+
+class ROITrainer(Trainer):
+    """Class for training image pairs."""
+
+    def __init__(self, model: nn.Module, optimizer, loss, gpu:bool=False):
+        """Init the class."""
+        super(self).__init__(model, optimizer, loss, gpu)
+
+    def train_step(self, epochs:int, trainloader: data.DataLoader):
+        """Step for training machine learning model for one epoch."""
+        pass
