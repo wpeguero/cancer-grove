@@ -102,7 +102,7 @@ soupsieve==2.5
 stack_data==0.6.3
 TBB==0.2
 tomli==2.0.1
-tornado==6.4
+tornado==6.4.1
 traitlets==5.14.3
 trove-classifiers==2024.4.10
 typeguard==4.2.1
