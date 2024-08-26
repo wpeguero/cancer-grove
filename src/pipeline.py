@@ -12,7 +12,6 @@ import os
 
 import polars as pl
 import torch
-from torch.utils import data
 
 from datasets import ROIDataset
 from models import UNet
@@ -25,33 +24,58 @@ torch.cuda.manual_seed(42)
 
 def _main():
     """Test the new functions."""
-    #pipeline = CuratedBreastCancerROIPipeline(
-    #    root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
-    #)
-    #df__pi, df__roi, df__mask = pipeline.start()
-    # df__pi.write_csv('data/CBIS-DDSM/paired_image_set.csv')
-    #df__roi.write_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
-    #df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
-    # TODO: Start training model for pair images.
-    df = pl.read_csv('data/CBIS-DDSM/roi_paired_image_set.csv')
-    img_data = list()
-    for row in df.iter_rows(named=True):
-        #Here is where the image size will be extracted
-        full_img = load_dicom_image(row['path'])
-        roi_img = load_dicom_image(row['path_right'])
-        full_dim = full_img.shape
-        roi_dim = roi_img.shape
-        img_data.append({'id': row['UID'], 'path':row['path'], 'roi_path':row['path_right'], 'image_dim':str(full_dim), 'roi_dim':str(roi_dim)})
-    df_shapes= pl.DataFrame(img_data)
-    df_shapes.write_csv('data/CBIS-DDSM/roi_paired_image_set_wdims.csv')
+    pipeline = CuratedBreastCancerROIPipeline(
+       root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
+    )
+    df__pi, df__roi, df__mask = pipeline.start()
+    df__pi.write_csv('data/CBIS-DDSM/paired_image_set.csv')
+    df__roi.write_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
+    df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
     exit()
-
-    img_data = ROIDataset(df, 'path', 'path_right') #TODO: Create your own transforms for image size.
-    train_size = int(0.7*len(img_data))
+    #TODO: Filter the ROI mask images so that the first image is chosen.
+    df = pl.read_csv("data/CBIS-DDSM/roi_paired_image_set_wdims.csv")
+    dims__full_image__str = df.select("image_dim").to_series().to_list()
+    dims__roi_image__str = df.select("roi_dim").to_series().to_list()
+    dims__full_image__tuple = [eval(value) for value in dims__full_image__str]
+    heights__full_image = [h for h, w, d in dims__full_image__tuple]
+    width__full_image = [w for h, w, d in dims__full_image__tuple]
+    print(
+        f"average height of full image: {sum(heights__full_image) / len(heights__full_image)}"
+    )
+    print(
+        f"average width of full image: {sum(width__full_image ) / len(width__full_image)}"
+    )
+    print(f"max height of full image: {max(heights__full_image)}")
+    print(f"max width of full image: {max(width__full_image)}")
+    print(f"min height of full image: {min(heights__full_image)}")
+    print(f"min width of full image: {min(width__full_image)}")
+    print("")
+    dims__roi_image__tuple = [eval(value) for value in dims__roi_image__str]
+    heights__roi_image = [h for h, w, d in dims__roi_image__tuple]
+    width__roi_image = [w for h, w, d in dims__roi_image__tuple]
+    print(
+        f"average height of roi image: {sum(heights__roi_image) / len(heights__roi_image)}"
+    )
+    print(
+        f"average width of roi image: {sum(width__roi_image) / len(width__roi_image)}"
+    )
+    print(f"max height of roi image: {max(heights__roi_image)}")
+    print(f"max width of roi image: {max(width__roi_image)}")
+    print(f"min width of roi image: {min(width__roi_image)}")
+    print(f"min width of roi image: {min(width__roi_image)}")
+    exit()
+    img_data = ROIDataset(
+        df, "path", "path_right"
+    )  # TODO: Create your own transforms for image size.
+    train_size = int(0.7 * len(img_data))
     val_size = len(img_data) - train_size
     train_set, val_set = img_data.random_split(img_data, [train_size, val_size])
-    train_loader = img_data.DataLoader(train_set, batch_size=64, shuffle=True, num_workers=4)
-    val_loader = img_data.DataLoader(val_set, batch_size=64, shuffle=True, num_workers=4)
+    train_loader = img_data.DataLoader(
+        train_set, batch_size=64, shuffle=True, num_workers=4
+    )
+    val_loader = img_data.DataLoader(
+        val_set, batch_size=64, shuffle=True, num_workers=4
+    )
     model = UNet()
 
 
@@ -87,8 +111,8 @@ class DataPipeline:
     def _extract_paths(self):
         """Extract the path to files within root."""
         raw_paths = list("paths\n")
-        for path, subdirs, files in os.walk(self.root):
-            paths = [os.path.join(path, name, "\n") for name in files]
+        for path, subdirs, files in os.walk(self.root): #TODO: Fix issue with csv files being included.
+            paths = [os.path.join(path, name) for name in files if '.csv' not in name]
             raw_paths.extend(paths)
         self.files = raw_paths
         return self
@@ -156,7 +180,7 @@ class CuratedBreastCancerClassifierPipeline(DataPipeline):
         for path in self.files:
             if "images" in path:
                 for term, label in self.labels.items():
-                    path = path[:-1]
+                    path = path
                     lpath = path.lower()
                     lterm = term.lower()
                     components = path.split("/")
@@ -282,16 +306,17 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
         df__roi = pl.DataFrame(self.roidata)
         df__full_image = pl.DataFrame(self.fulldata)
         df__paired_images = df__full_image.join(df__roi, on="UID", how="left")
+        # The below no longer works as the images are not necesarily in the correct order. Check to see if the dimensions are the same.
         df__roi_paired_images = df__paired_images.filter(
-            pl.col("path_right").str.contains("1-1.dcm")
+                pl.col('roi_height') != pl.col('full_height')
         )
         df__mask_paired_images = df__paired_images.filter(
-            pl.col("path_right").str.contains("1-2.dcm")
+                pl.col('roi_height') == pl.col('full_height')
         )
         return df__paired_images, df__roi_paired_images, df__mask_paired_images
 
     @staticmethod
-    def get_roi_paths(path: str):
+    def roi_path_filter(path: str):
         """Get the roi paths from the file list."""
         if "roi" in path.lower():
             return True
@@ -299,7 +324,7 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
             return False
 
     @staticmethod
-    def get_full_image_paths(path: str):
+    def full_image_path_filter(path: str):
         """Get the full image paths from the file list."""
         if "full" in path.lower():
             return True
@@ -310,26 +335,44 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
         """Create A unique id for linking images."""
         roidata = list()
         for rp in self.roi_files:
+            roi_img = load_dicom_image(rp)
+            roi_img_dim = roi_img.shape
             components = rp.split("/")
             raw_uid = components[3]
             start = raw_uid.find("_") + 1
             unique_id = raw_uid[start:-2]
-            roidata.append({"UID": unique_id, "path": rp[:-2]})
+            roidata.append(
+                {
+                    "UID": unique_id,
+                    "path": rp,
+                    "roi_width": roi_img_dim[0],
+                    "roi_height": roi_img_dim[1],
+                }
+            )
         self.roidata = roidata
         fulldata = list()
         for fp in self.full_files:
+            full_img = load_dicom_image(fp)
+            full_img_dim = full_img.shape
             components = fp.split("/")
             raw_uid = components[3]
             start = raw_uid.find("_") + 1
             unique_id = raw_uid[start:]
-            fulldata.append({"UID": unique_id, "path": fp[:-2]})
+            fulldata.append(
+                {
+                    "UID": unique_id,
+                    "path": fp,
+                    "full_width": full_img_dim[0],
+                    "full_height": full_img_dim[1],
+                }
+            )
         self.fulldata = fulldata
         return self
 
     def link_images(self):
         """Connect ROI image to full image."""
-        self.roi_files = list(filter(self.get_roi_paths, self.files))
-        self.full_files = list(filter(self.get_full_image_paths, self.files))
+        self.roi_files = list(filter(self.roi_path_filter, self.files))
+        self.full_files = list(filter(self.full_image_path_filter, self.files))
         return self
 
 
