@@ -111,7 +111,7 @@ udiskie==2.5.2
 ufw==0.36.2
 ujson==5.9.0
 Unidecode==1.3.8
-urllib3==1.26.18
+urllib3==1.26.19
 validate==5.0.8
 validate-pyproject==0.16
 variety==0.8.12
