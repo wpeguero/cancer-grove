@@ -3,6 +3,9 @@
 Library for developing and processing cancer-based machine learning
 models and data.
 
+*link to the docstring style:*
+[Example of numpydoc docstring style](https://numpydoc.readthedocs.io/en/latest/example.html#example)
+
 ## Helpful Links
 
 ### Links to Informative journals about models
