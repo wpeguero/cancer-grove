@@ -10,7 +10,26 @@ with open("src/model_version.txt", "r") as fp:
 
 
 class Trainer:
-    """Base class for training machine learning models."""
+    """Base class for training machine learning models.
+
+    The Base class to create a training environment that can be used
+    to create machine learning models while monitoring the training
+    process.
+
+    Parameters
+    ----------
+    model : Module
+        pytorch model created for training on data.
+    optimizer : Optimizer
+        Used for changing parameters such that the output of the
+        model resemble the expected output while training.
+    loss
+        algorithm for calculating how distant the output is from the
+        expected output.
+    gpu : bool
+        Boolean output used to determine whether to use the gpu or
+        not.
+    """
 
     def __init__(self, model: nn.Module, optimizer: optim.Optimizer, loss, gpu:bool=False):
         """Initialize the class."""
@@ -18,9 +37,9 @@ class Trainer:
         self.opt = optimizer
         self.criterion = loss
         if gpu:
-            device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+            self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
         else:
-            device = torch.device("cpu")
+            self.device = torch.device("cpu")
 
     def get_model(self):
         """Get the model post training.
@@ -115,23 +134,6 @@ class ClassTrainer(Trainer):
             correct = 0
             total = 0
         print(f'[{epoch + 1:3d}/{self.epochs}] loss: {running_loss / self.steps_per_epoch:.3f}, accuracy: {round(100 * correct / total, 2)}')
-        #for i, (inputs, labels) in enumerate(trainloader, 0):
-        #    inputs = inputs.to(self.device)
-        #    labels = labels.to(self.device)
-        #    self.opt.zero_grad()
-
-        #    outputs = self.model(inputs)
-        #    loss = self.criterion(outputs, labels)
-        #    loss.backward()
-        #    self.opt.step()
-
-        #    # _, ipredicted = torch.max(outputs.data, 1)
-        #    ipredicted = outputs.max(1).indices
-        #    # _, lindices = torch.max(labels.data, 1)
-        #    lindices = labels.max(1).indices
-        #    total += labels.size(0)
-        #    correct += (ipredicted == lindices).sum().item()
-        #    running_loss += loss.item()
 
     @staticmethod
     def test(
@@ -220,8 +222,16 @@ class ROITrainer(Trainer):
 
     def __init__(self, model: nn.Module, optimizer, loss, gpu:bool=False):
         """Init the class."""
-        super(self).__init__(model, optimizer, loss, gpu)
+        super().__init__(model, optimizer, loss, gpu)
 
     def train_step(self, epochs:int, trainloader: data.DataLoader):
         """Step for training machine learning model for one epoch."""
-        pass
+        for i, (inputs, roi) in enumerate(trainloader, 0):
+            inputs = inputs.to(self.device)
+            roi = roi.to(self.device)
+            with torch.autocast('cuda'):
+                roi_pred = self.model(inputs)
+                loss = self.criterion(roi_pred, roi)
+                loss.backward()
+                self.opt.step()
+
