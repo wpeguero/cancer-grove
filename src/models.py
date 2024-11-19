@@ -234,7 +234,7 @@ class DoubleConvolution(nn.Module):
         return x
 
 
-class UNet(nn.Module):
+class UNet(nn.Module): #Fix issue where input_channel parameter = 1
     """Creates a U-Net model for image segmentation.
 
     Unique class built to develop U-Net models. Inherits from the
@@ -256,8 +256,11 @@ class UNet(nn.Module):
         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
 
         # Calculate the Down Convolutions
-        for feature in features:
-            self.dc.append(DoubleConvolution(in_channels, out_channels))
+        for i, feature in enumerate(features):
+            if i == 0:
+                self.dc.append(DoubleConvolution(in_channels, feature))
+            else:
+                self.dc.append(DoubleConvolution(feature, 2 * feature))
             in_channels = feature
 
         # Calculate the Up Convolutions
@@ -273,7 +276,7 @@ class UNet(nn.Module):
     def forward(self, x):
         """Forward pass of u-net."""
         skip_connections = list()
-        for down in self.downs:
+        for down in self.dc:
             x = down(x)
             skip_connections.append(x)
             x = self.pool(x)
