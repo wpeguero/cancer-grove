@@ -12,28 +12,72 @@ import os
 
 import polars as pl
 import torch
+from torch.utils import data
+from torch.utils.data import random_split
+from torchvision import transforms
+from pydicom import dcmread
 
 from datasets import ROIDataset
 from models import UNet
 from utils import load_dicom_image
+from trainers import ROITrainer
 
 img_size = (512, 512)
 torch.manual_seed(42)
 torch.cuda.manual_seed(42)
 
+FULL_IMAGE_TRANSFORM = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Resize((5226, 3152), antialias=True),
+        transforms.Grayscale(num_output_channels=1),
+    ]
+)
+ROI_IMAGE_TRANSFORM = transforms.Compose(
+    [
+        transforms.ToTensor(),
+        transforms.Resize((1298, 902), antialias=True),
+        transforms.Grayscale(num_output_channels=1),
+    ]
+)
+
 
 def _main():
     """Test the new functions."""
-    pipeline = CuratedBreastCancerROIPipeline(
-       root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
+    # pipeline = CuratedBreastCancerROIPipeline(
+    #   root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
+    # )
+    # df__pi, df__roi, df__mask = pipeline.start()
+    # df__pi.write_csv('data/CBIS-DDSM/paired_image_set.csv')
+    # df__roi.write_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
+    # df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
+    # TODO: Filter the ROI mask images so that the first image is chosen.
+    df = pl.read_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
+    # get_image_size_metrics(df)
+    img_data = ROIDataset(
+        df,
+        "path",
+        "path_right",
+        img_transforms=FULL_IMAGE_TRANSFORM,
+        roi_transform=ROI_IMAGE_TRANSFORM,
+    )  # TODO: Create your own transforms for image size.
+    train_size = int(0.7 * len(img_data))
+    val_size = len(img_data) - train_size
+    train_set, val_set = random_split(img_data, [train_size, val_size])
+    train_loader = data.DataLoader(
+        train_set, batch_size=64, shuffle=True, num_workers=4
     )
-    df__pi, df__roi, df__mask = pipeline.start()
-    df__pi.write_csv('data/CBIS-DDSM/paired_image_set.csv')
-    df__roi.write_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
-    df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
-    exit()
-    #TODO: Filter the ROI mask images so that the first image is chosen.
-    df = pl.read_csv("data/CBIS-DDSM/roi_paired_image_set_wdims.csv")
+    val_loader = data.DataLoader(val_set, batch_size=64, shuffle=True, num_workers=4)
+    loss = torch.nn.MSELoss()
+    model = UNet(in_channels=1)
+    print(model)
+    opt = torch.optim.Adam(params=model.parameters())
+    trainer = ROITrainer(model, opt, loss, gpu=True)
+    trainer.train(train_loader, epochs=1)
+
+
+def get_image_size_metrics(df: pl.DataFrame):
+    """Get some basic metrics for observing images."""
     dims__full_image__str = df.select("image_dim").to_series().to_list()
     dims__roi_image__str = df.select("roi_dim").to_series().to_list()
     dims__full_image__tuple = [eval(value) for value in dims__full_image__str]
@@ -63,20 +107,6 @@ def _main():
     print(f"max width of roi image: {max(width__roi_image)}")
     print(f"min width of roi image: {min(width__roi_image)}")
     print(f"min width of roi image: {min(width__roi_image)}")
-    exit()
-    img_data = ROIDataset(
-        df, "path", "path_right"
-    )  # TODO: Create your own transforms for image size.
-    train_size = int(0.7 * len(img_data))
-    val_size = len(img_data) - train_size
-    train_set, val_set = img_data.random_split(img_data, [train_size, val_size])
-    train_loader = img_data.DataLoader(
-        train_set, batch_size=64, shuffle=True, num_workers=4
-    )
-    val_loader = img_data.DataLoader(
-        val_set, batch_size=64, shuffle=True, num_workers=4
-    )
-    model = UNet()
 
 
 class DataPipeline:
@@ -94,6 +124,7 @@ class DataPipeline:
     ----------
     root : String
         Path to the folder containing all of the data.
+
     """
 
     def __init__(self, root: str):
@@ -111,8 +142,10 @@ class DataPipeline:
     def _extract_paths(self):
         """Extract the path to files within root."""
         raw_paths = list("paths\n")
-        for path, subdirs, files in os.walk(self.root): #TODO: Fix issue with csv files being included.
-            paths = [os.path.join(path, name) for name in files if '.csv' not in name]
+        for path, subdirs, files in os.walk(
+            self.root
+        ):  # TODO: Fix issue with csv files being included.
+            paths = [os.path.join(path, name) for name in files if ".csv" not in name]
             raw_paths.extend(paths)
         self.files = raw_paths
         return self
@@ -148,7 +181,7 @@ class CuratedBreastCancerClassifierPipeline(DataPipeline):
             self.extract_paths()
             self.label_paths()
             df__descriptions = self.concat_description_sets()
-            df__descriptions = self.create_unique_id(
+            df__descriptions = self.create_unique_ids(
                 df__descriptions, self.labelled_data
             )
             df__dataset = self.merge_data(self.labelled_data, df__descriptions, "UID")
@@ -196,7 +229,7 @@ class CuratedBreastCancerClassifierPipeline(DataPipeline):
         self.labelled_data = data
         return self
 
-    def create_unique_id(self, fname: str | pl.DataFrame) -> pl.DataFrame:
+    def create_unique_ids(self, fname: str | pl.DataFrame) -> pl.DataFrame:
         """Create a column that contains a unique id created from other column values.
 
         Uses existing values from the dataset to develop a unique id that can then be
@@ -292,6 +325,16 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
 
     Pipeline that uses the CBIS-DDSM dataset to develop a machine learning
     model that zooms in on the region of interest of an image.
+
+    Examples
+    --------
+    >pipeline = CuratedBreastCancerROIPipeline(
+    >   root="data/CBIS-DDSM/", img_labels={"roi": "ROI mask", "full": "full mammogram"}
+    >)
+    >df__pi, df__roi, df__mask = pipeline.start()
+    >df__pi.write_csv('data/CBIS-DDSM/paired_image_set.csv')
+    >df__roi.write_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
+    >df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
     """
 
     def __init__(self, root: str, img_labels: dict):
@@ -299,7 +342,7 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
         super().__init__(root)
         self.img_labels = img_labels
         self.link_images()
-        self.create_unique_id()
+        self.create_unique_ids()
 
     def start(self):
         """Start the pipeline for data processing."""
@@ -308,10 +351,10 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
         df__paired_images = df__full_image.join(df__roi, on="UID", how="left")
         # The below no longer works as the images are not necesarily in the correct order. Check to see if the dimensions are the same.
         df__roi_paired_images = df__paired_images.filter(
-                pl.col('roi_height') != pl.col('full_height')
+            pl.col("roi__series_description") == "cropped images"
         )
         df__mask_paired_images = df__paired_images.filter(
-                pl.col('roi_height') == pl.col('full_height')
+            pl.col("roi__series_description") == "ROI mask images"
         )
         return df__paired_images, df__roi_paired_images, df__mask_paired_images
 
@@ -331,12 +374,17 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
         else:
             return False
 
-    def create_unique_id(self):
+    def create_unique_ids(self):
         """Create A unique id for linking images."""
         roidata = list()
         for rp in self.roi_files:
+            ds_roi = dcmread(rp)
             roi_img = load_dicom_image(rp)
             roi_img_dim = roi_img.shape
+            try:
+                roi__series_description = ds_roi["SeriesDescription"].value
+            except KeyError:
+                roi__series_description = "Null"
             components = rp.split("/")
             raw_uid = components[3]
             start = raw_uid.find("_") + 1
@@ -345,6 +393,7 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
                 {
                     "UID": unique_id,
                     "path": rp,
+                    "roi__series_description": roi__series_description,
                     "roi_width": roi_img_dim[0],
                     "roi_height": roi_img_dim[1],
                 }
@@ -352,8 +401,13 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
         self.roidata = roidata
         fulldata = list()
         for fp in self.full_files:
+            ds_full = dcmread(fp)
             full_img = load_dicom_image(fp)
             full_img_dim = full_img.shape
+            try:
+                full__series_description = ds_full["SeriesDescription"].value
+            except KeyError:
+                full__series_description = "Null"
             components = fp.split("/")
             raw_uid = components[3]
             start = raw_uid.find("_") + 1
@@ -362,6 +416,7 @@ class CuratedBreastCancerROIPipeline(DataPipeline):
                 {
                     "UID": unique_id,
                     "path": fp,
+                    "full__series_description": full__series_description,
                     "full_width": full_img_dim[0],
                     "full_height": full_img_dim[1],
                 }
