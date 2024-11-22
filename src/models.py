@@ -234,7 +234,7 @@ class DoubleConvolution(nn.Module):
         return x
 
 
-class UNet(nn.Module): #Fix issue where input_channel parameter = 1
+class UNet(nn.Module):
     """Creates a U-Net model for image segmentation.
 
     Unique class built to develop U-Net models. Inherits from the
@@ -257,10 +257,7 @@ class UNet(nn.Module): #Fix issue where input_channel parameter = 1
 
         # Calculate the Down Convolutions
         for i, feature in enumerate(features):
-            if i == 0:
-                self.dc.append(DoubleConvolution(in_channels, feature))
-            else:
-                self.dc.append(DoubleConvolution(feature, 2 * feature))
+            self.dc.append(DoubleConvolution(in_channels, feature))
             in_channels = feature
 
         # Calculate the Up Convolutions
@@ -286,13 +283,13 @@ class UNet(nn.Module): #Fix issue where input_channel parameter = 1
 
         for idx in range(0, len(self.uc), 2):
             x = self.uc[idx](x)
-            skip_connections = skip_connections[idx // 2]
+            skip_connection = skip_connections[idx // 2]
 
-            if x.shape != skip_connections.shape:
-                x = TF.resize(x, size=skip_connections.shape[2:])
+            if x.shape != skip_connection.shape:
+                x = TF.resize(x, size=skip_connection.shape[2:])
 
-            concat_skip = torch.cat((skip_connections, x), dim=1)
-            x = self.ups[idx + 1](concat_skip)
+            concat_skip = torch.cat((skip_connection, x), dim=1)
+            x = self.uc[idx + 1](concat_skip)
 
         return self.final_convolution(x)
 
