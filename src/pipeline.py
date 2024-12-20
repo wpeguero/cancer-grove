@@ -20,7 +20,7 @@ from pydicom import dcmread
 from datasets import ROIDataset
 from models import UNet
 from utils import load_dicom_image
-from trainers import ROITrainer
+import trainers
 
 img_size = (512, 512)
 torch.manual_seed(42)
@@ -53,27 +53,28 @@ def _main():
     # df__mask.write_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
     # TODO: Filter the ROI mask images so that the first image is chosen.
     df = pl.read_csv("data/CBIS-DDSM/roi_paired_image_set.csv")
+    df = pl.read_csv("data/CBIS-DDSM/mask_paired_image_set.csv")
     # get_image_size_metrics(df)
     img_data = ROIDataset(
         df,
         "path",
         "path_right",
         img_transforms=FULL_IMAGE_TRANSFORM,
-        roi_transform=ROI_IMAGE_TRANSFORM,
+        roi_transform=FULL_IMAGE_TRANSFORM,
     )  # TODO: Create your own transforms for image size.
     train_size = int(0.7 * len(img_data))
     val_size = len(img_data) - train_size
     train_set, val_set = random_split(img_data, [train_size, val_size])
-    train_loader = data.DataLoader(
-        train_set, batch_size=64, shuffle=True, num_workers=4
-    )
-    val_loader = data.DataLoader(val_set, batch_size=64, shuffle=True, num_workers=4)
+    train_loader = data.DataLoader(train_set, batch_size=2, shuffle=True, num_workers=4)
+    val_loader = data.DataLoader(val_set, batch_size=2, shuffle=True, num_workers=4)
     loss = torch.nn.MSELoss()
-    model = UNet(in_channels=1)
+    model = UNet(in_channels=1, features=[16, 32, 64, 128])
     print(model)
     opt = torch.optim.Adam(params=model.parameters())
-    trainer = ROITrainer(model, opt, loss, gpu=True)
-    trainer.train(train_loader, epochs=1)
+    trainer = trainers.MaskTrainer(model, opt, loss, gpu=True)
+    trainer.train(train_loader, epochs=10)
+    model = trainer.get_model()
+    torch.save(model.state_dict(), 'models/unet_v1.pt')
 
 
 def get_image_size_metrics(df: pl.DataFrame):
