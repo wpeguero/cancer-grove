@@ -223,3 +223,23 @@ def interpret_p_value(p_value, alpha=0.01):
         return True
     else:
         return False
+
+
+def calculate_intersection_over_union(preds, actuals):
+    """Calculate the IOU for batch predictions."""
+    preds = torch.sigmoid(preds) > 0.5
+    actuals = actuals > 0.5
+    intersection = (preds & actuals).float().sum((1, 2))
+    union = (preds | actuals).float().sum((1, 2))
+    iou = (intersection + 1e-6) / (union + 1e-6)
+    return iou.mean()
+
+
+def calculate_dice_coefficient(pred, actual, smooth: float = 1e-5):
+    """Calculate the dice coefficient to estimate how close the predicted image is to the actual image."""
+    #pred = pred.view(-1)
+    #actual = actual.view(-1)
+
+    intersection = (pred * actual).sum()
+    dice = (2 * intersection + smooth) / (pred.sum() + actual.sum() + smooth)
+    return dice.mean()
