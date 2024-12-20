@@ -4,6 +4,8 @@ import torch
 from torch import nn, optim
 from torch.utils import data
 
+import stats
+
 with open("src/model_version.txt", "r") as fp:
     VERSION = int(fp.read())
     fp.close()
@@ -84,6 +86,7 @@ class Trainer:
         for epoch in range(epochs):
             self.model.train(True)
             self.train_step(epoch, trainloader)
+            print("epoch {} finished.".format(epoch))
 
     def train_step(self, epoch: int, trainloader: data.DataLoader):
         """Single Step for training model."""
@@ -217,7 +220,7 @@ class ClassTrainer(Trainer):
         return cm
 
 
-class ROITrainer(Trainer):
+class MaskTrainer(Trainer):
     """Class for training image pairs."""
 
     def __init__(self, model: nn.Module, optimizer, loss, gpu:bool=False):
@@ -226,12 +229,18 @@ class ROITrainer(Trainer):
 
     def train_step(self, epochs:int, trainloader: data.DataLoader):
         """Step for training machine learning model for one epoch."""
-        for i, (inputs, roi) in enumerate(trainloader, 0):
+        for i, (inputs, mask) in enumerate(trainloader, 0):
             inputs = inputs.to(self.device)
-            roi = roi.to(self.device)
+            mask = mask.to(self.device)
+            #free, total = torch.cuda.mem_get_info(self.device)
+            #mem_used_MB = (total - free) / 1024 ** 2
+            #print(mem_used_MB)
             with torch.autocast('cuda'):
-                roi_pred = self.model(inputs)
-                loss = self.criterion(roi_pred, roi)
+                mask_pred = self.model(inputs)
+                loss = self.criterion(mask_pred, mask)
                 loss.backward()
                 self.opt.step()
+        iou = stats.calculate_intersection_over_union(mask_pred, mask)
+        d_coeff = stats.calculate_dice_coefficient(mask_pred, mask)
+        print("IoU accuracy: {}, \tAvg. Dice Coefficient: {}.".format(iou, d_coeff))
 
