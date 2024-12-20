@@ -20,6 +20,7 @@ from pydicom import dcmread
 from datasets import ROIDataset
 from models import UNet
 from utils import load_dicom_image
+import losses
 import trainers
 
 img_size = (512, 512)
@@ -29,7 +30,7 @@ torch.cuda.manual_seed(42)
 FULL_IMAGE_TRANSFORM = transforms.Compose(
     [
         transforms.ToTensor(),
-        transforms.Resize((5226, 3152), antialias=True),
+        transforms.Resize((523, 316), interpolation=transforms.InterpolationMode.BICUBIC,antialias=True),
         transforms.Grayscale(num_output_channels=1),
     ]
 )
@@ -65,9 +66,10 @@ def _main():
     train_size = int(0.7 * len(img_data))
     val_size = len(img_data) - train_size
     train_set, val_set = random_split(img_data, [train_size, val_size])
-    train_loader = data.DataLoader(train_set, batch_size=2, shuffle=True, num_workers=4)
+    train_loader = data.DataLoader(train_set, batch_size=32, shuffle=True, num_workers=8)
     val_loader = data.DataLoader(val_set, batch_size=2, shuffle=True, num_workers=4)
-    loss = torch.nn.MSELoss()
+    #loss = torch.nn.MSELoss()
+    loss = losses.TverskyLoss()
     model = UNet(in_channels=1, features=[16, 32, 64, 128])
     print(model)
     opt = torch.optim.Adam(params=model.parameters())
