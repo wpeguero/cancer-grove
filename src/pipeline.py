@@ -74,7 +74,7 @@ def _main():
     print(model)
     opt = torch.optim.Adam(params=model.parameters())
     trainer = trainers.MaskTrainer(model, opt, loss, gpu=True)
-    trainer.train(train_loader, epochs=10)
+    trainer.train(train_loader, epochs=30)
     model = trainer.get_model()
     torch.save(model.state_dict(), 'models/unet_v1.pt')
 
